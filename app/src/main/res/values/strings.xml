@@ -99,10 +99,8 @@
     <string name="hint_confirmation">Are you sure you want to use this hint? When using hints, you will not be able to achieve a personal best time.</string>
     <string name="hint_confirmation_confirm">Use</string>
     <string name="hint_apply">Apply</string>
-    <string name="hint_details">Details</string>
     <string name="hint_next">Next</string>
-    <string name="hint_back">Back</string>
-    <string name="hint_close">Close</string>
+    <string name="hint_prev">Prev</string>
     <string name="hint_unavailable">No hint is available for this board.</string>
     <string name="hint_error">Ludoku could not calculate a hint for this board.</string>
     <string name="hint_detail_title">%1$s · %2$d of %3$d</string>

@@ -24,8 +24,8 @@ import org.secuso.privacyfriendlysudoku.controller.hints.GameHint;
 import java.util.List;
 
 /**
- * Explanation-first hint dialog with the same Summary, Details, and Apply flow as the web
- * reference. Details are paged so each deduction can be considered on the highlighted board.
+ * Explanation-first hint dialog with a persistent Apply action on the left and paged
+ * Prev/Next navigation on the right. Tapping outside dismisses the explanation.
  */
 public final class HumanHintDialog {
 
@@ -45,11 +45,12 @@ public final class HumanHintDialog {
         dialog = new AlertDialog.Builder(context, R.style.AppTheme_Dialog)
                 .setTitle(hint.getTitle())
                 .setMessage(hint.getSummary())
-                .setPositiveButton(R.string.hint_apply, null)
-                .setNeutralButton(R.string.hint_details, null)
-                .setNegativeButton(R.string.hint_close, null)
+                .setPositiveButton(R.string.hint_next, null)
+                .setNeutralButton(R.string.hint_apply, null)
+                .setNegativeButton(R.string.hint_prev, null)
                 .create();
 
+        dialog.setCanceledOnTouchOutside(true);
         configureWindow();
         dialog.setOnDismissListener(ignored -> gameController.endHint());
         dialog.setOnShowListener(ignored -> {
@@ -77,22 +78,22 @@ public final class HumanHintDialog {
         dialog.setTitle(hint.getTitle());
         dialog.setMessage(hint.getSummary());
 
-        Button apply = dialog.getButton(DialogInterface.BUTTON_POSITIVE);
+        Button apply = dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
+        apply.setVisibility(View.VISIBLE);
         apply.setText(R.string.hint_apply);
         apply.setOnClickListener(view -> applyHint());
 
-        Button details = dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
-        if(hint.getDetails().isEmpty()) {
-            details.setVisibility(View.GONE);
-        } else {
-            details.setVisibility(View.VISIBLE);
-            details.setText(R.string.hint_details);
-            details.setOnClickListener(view -> showDetail(0));
-        }
+        Button previous = dialog.getButton(DialogInterface.BUTTON_NEGATIVE);
+        previous.setVisibility(View.GONE);
 
-        Button close = dialog.getButton(DialogInterface.BUTTON_NEGATIVE);
-        close.setText(R.string.hint_close);
-        close.setOnClickListener(view -> dialog.dismiss());
+        Button next = dialog.getButton(DialogInterface.BUTTON_POSITIVE);
+        if(hint.getDetails().isEmpty()) {
+            next.setVisibility(View.GONE);
+        } else {
+            next.setVisibility(View.VISIBLE);
+            next.setText(R.string.hint_next);
+            next.setOnClickListener(view -> showDetail(0));
+        }
     }
 
     private void showDetail(int index) {
@@ -103,19 +104,24 @@ public final class HumanHintDialog {
                 hint.getTitle(), detailIndex + 1, details.size()));
         dialog.setMessage(details.get(detailIndex));
 
+        Button apply = dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
+        apply.setVisibility(View.VISIBLE);
+        apply.setText(R.string.hint_apply);
+        apply.setOnClickListener(view -> applyHint());
+
         Button next = dialog.getButton(DialogInterface.BUTTON_POSITIVE);
-        if(detailIndex == details.size() - 1) {
-            next.setText(R.string.hint_apply);
-            next.setOnClickListener(view -> applyHint());
-        } else {
-            next.setText(R.string.hint_next);
+        next.setText(R.string.hint_next);
+        if(detailIndex < details.size() - 1) {
+            next.setVisibility(View.VISIBLE);
             next.setOnClickListener(view -> showDetail(detailIndex + 1));
+        } else {
+            next.setVisibility(View.GONE);
         }
 
-        Button back = dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
-        back.setVisibility(View.VISIBLE);
-        back.setText(R.string.hint_back);
-        back.setOnClickListener(view -> {
+        Button previous = dialog.getButton(DialogInterface.BUTTON_NEGATIVE);
+        previous.setVisibility(View.VISIBLE);
+        previous.setText(R.string.hint_prev);
+        previous.setOnClickListener(view -> {
             if(detailIndex == 0) {
                 showSummary();
             } else {
