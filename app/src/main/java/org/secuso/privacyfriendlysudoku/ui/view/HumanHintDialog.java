@@ -50,19 +50,25 @@ public final class HumanHintDialog {
                 .setNegativeButton(R.string.hint_close, null)
                 .create();
 
+        configureWindow();
         dialog.setOnDismissListener(ignored -> gameController.endHint());
         dialog.setOnShowListener(ignored -> {
             gameController.beginHint(hint);
-            Window window = dialog.getWindow();
-            if(window != null) {
-                WindowManager.LayoutParams attributes = window.getAttributes();
-                attributes.dimAmount = 0.35f;
-                attributes.gravity = Gravity.BOTTOM;
-                window.setAttributes(attributes);
-            }
+            configureWindow();
             showSummary();
         });
         dialog.show();
+    }
+
+    private void configureWindow() {
+        Window window = dialog.getWindow();
+        if(window == null) {
+            return;
+        }
+        WindowManager.LayoutParams attributes = window.getAttributes();
+        attributes.dimAmount = 0.35f;
+        attributes.gravity = Gravity.BOTTOM;
+        window.setAttributes(attributes);
     }
 
     private void showSummary() {

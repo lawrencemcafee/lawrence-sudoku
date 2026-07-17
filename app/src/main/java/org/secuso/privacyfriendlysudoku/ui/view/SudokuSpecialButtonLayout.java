@@ -17,7 +17,6 @@
 package org.secuso.privacyfriendlysudoku.ui.view;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
@@ -60,7 +59,6 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
     float buttonMargin;
     private ExecutorService hintExecutor;
     private Future<?> hintTask;
-    private AlertDialog thinkingDialog;
     private int hintRequestId;
 
     OnClickListener listener = new OnClickListener() {
@@ -122,13 +120,6 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
             hintExecutor = Executors.newSingleThreadExecutor();
         }
         setHintButtonEnabled(false);
-        thinkingDialog = new AlertDialog.Builder(context, R.style.AppTheme_Dialog)
-                .setMessage(R.string.hint_thinking)
-                .setNegativeButton(R.string.hint_cancel, (dialog, which) -> cancelHintRequest())
-                .setOnCancelListener(dialog -> cancelHintRequest())
-                .create();
-        thinkingDialog.setCanceledOnTouchOutside(false);
-        thinkingDialog.show();
 
         hintTask = hintExecutor.submit(() -> {
             try {
@@ -145,10 +136,6 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
         if(requestId != hintRequestId || getWindowToken() == null) {
             return;
         }
-        if(thinkingDialog != null && thinkingDialog.isShowing()) {
-            thinkingDialog.dismiss();
-        }
-        thinkingDialog = null;
         hintTask = null;
         setHintButtonEnabled(true);
         if(context instanceof Activity) {
@@ -172,10 +159,6 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
             hintTask.cancel(true);
             hintTask = null;
         }
-        if(thinkingDialog != null && thinkingDialog.isShowing()) {
-            thinkingDialog.dismiss();
-        }
-        thinkingDialog = null;
         setHintButtonEnabled(true);
     }
 
