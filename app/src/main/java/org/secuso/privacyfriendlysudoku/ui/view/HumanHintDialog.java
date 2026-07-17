@@ -11,7 +11,10 @@ package org.secuso.privacyfriendlysudoku.ui.view;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.Button;
 
 import org.secuso.privacyfriendlysudoku.R;
@@ -50,6 +53,13 @@ public final class HumanHintDialog {
         dialog.setOnDismissListener(ignored -> gameController.endHint());
         dialog.setOnShowListener(ignored -> {
             gameController.beginHint(hint);
+            Window window = dialog.getWindow();
+            if(window != null) {
+                WindowManager.LayoutParams attributes = window.getAttributes();
+                attributes.dimAmount = 0.35f;
+                attributes.gravity = Gravity.BOTTOM;
+                window.setAttributes(attributes);
+            }
             showSummary();
         });
         dialog.show();
@@ -57,6 +67,7 @@ public final class HumanHintDialog {
 
     private void showSummary() {
         detailIndex = -1;
+        gameController.showHintFrame(-1);
         dialog.setTitle(hint.getTitle());
         dialog.setMessage(hint.getSummary());
 
@@ -81,6 +92,7 @@ public final class HumanHintDialog {
     private void showDetail(int index) {
         List<String> details = hint.getDetails();
         detailIndex = index;
+        gameController.showHintFrame(detailIndex);
         dialog.setTitle(context.getString(R.string.hint_detail_title,
                 hint.getTitle(), detailIndex + 1, details.size()));
         dialog.setMessage(details.get(detailIndex));

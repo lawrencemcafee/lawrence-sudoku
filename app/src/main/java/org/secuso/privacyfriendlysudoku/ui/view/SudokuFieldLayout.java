@@ -22,7 +22,9 @@ import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.DashPathEffect;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.os.Build;
 import android.util.AttributeSet;
 import android.util.Xml;
@@ -33,6 +35,7 @@ import android.widget.RelativeLayout;
 import org.secuso.privacyfriendlysudoku.R;
 import org.secuso.privacyfriendlysudoku.controller.GameController;
 import org.secuso.privacyfriendlysudoku.controller.Symbol;
+import org.secuso.privacyfriendlysudoku.controller.hints.GameHint;
 import org.secuso.privacyfriendlysudoku.game.CellConflict;
 import org.secuso.privacyfriendlysudoku.game.GameCell;
 import org.secuso.privacyfriendlysudoku.game.ICellAction;
@@ -237,8 +240,11 @@ public class SudokuFieldLayout extends RelativeLayout implements IHighlightChang
         }
 
         // invalidate everything, so it gets redrawn
+        GameHint activeHint = gameController.getActiveHint();
+        int activeFrame = gameController.getActiveHintFrame();
         for(int i = 0; i < gameController.getSize(); i++) {
             for(int j = 0; j < gameController.getSize(); j++) {
+                gamecells[i][j].setHintOverlay(activeHint, activeFrame);
                 gamecells[i][j].invalidate();
             }
         }
@@ -296,5 +302,70 @@ public class SudokuFieldLayout extends RelativeLayout implements IHighlightChang
                     (gameCellWidth * col2 + gameCellWidth / 2)-offsetX,
                     (gameCellHeight * row2 + gameCellHeight / 2)-offsetY, p);
         }
+
+        drawHintOverlay(canvas);
     }
+
+    private void drawHintOverlay(Canvas canvas) {
+        GameHint hint = gameController.getActiveHint();
+        if(hint == null || gameCellWidth <= 0 || gameCellHeight <= 0) {
+            return;
+        }
+        GameHint.HintFrame frame = hint.getOverlayFrame(gameController.getActiveHintFrame());
+
+        Paint unitPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        unitPaint.setStyle(Paint.Style.STROKE);
+        unitPaint.setStrokeWidth(Math.max(4f, gameCellWidth / 14f));
+        for(GameHint.UnitMark unit : frame.getUnitMarks()) {
+            unitPaint.setColor(HintPalette.colorFor(unit.getMark()));
+            unitPaint.setAlpha(180);
+            RectF bounds;
+            switch(unit.getType()) {
+                case ROW:
+                    bounds = new RectF(2, unit.getIndex() * gameCellHeight + 2,
+                            gameController.getSize() * gameCellWidth - 2,
+                            (unit.getIndex() + 1) * gameCellHeight - 2);
+                    break;
+                case COLUMN:
+                    bounds = new RectF(unit.getIndex() * gameCellWidth + 2, 2,
+                            (unit.getIndex() + 1) * gameCellWidth - 2,
+                            gameController.getSize() * gameCellHeight - 2);
+                    break;
+                case BLOCK:
+                default:
+                    int blocksPerRow = gameController.getSize() / sectionWidth;
+                    int startRow = (unit.getIndex() / blocksPerRow) * sectionHeight;
+                    int startCol = (unit.getIndex() % blocksPerRow) * sectionWidth;
+                    bounds = new RectF(startCol * gameCellWidth + 2,
+                            startRow * gameCellHeight + 2,
+                            (startCol + sectionWidth) * gameCellWidth - 2,
+                            (startRow + sectionHeight) * gameCellHeight - 2);
+                    break;
+            }
+            canvas.drawRect(bounds, unitPaint);
+        }
+
+        Paint linkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        linkPaint.setStyle(Paint.Style.STROKE);
+        linkPaint.setStrokeWidth(Math.max(2f, gameCellWidth / 22f));
+        linkPaint.setColor(HintPalette.colorFor(GameHint.Mark.SUPPORT));
+        linkPaint.setAlpha(190);
+        for(GameHint.Link link : frame.getLinks()) {
+            if(link.isStrong()) {
+                linkPaint.setPathEffect(null);
+            } else {
+                linkPaint.setPathEffect(new DashPathEffect(new float[]{10f, 8f}, 0));
+            }
+            GameHint.Candidate from = link.getFrom();
+            GameHint.Candidate to = link.getTo();
+            SudokuCellView fromCell = gamecells[from.getRow()][from.getCol()];
+            SudokuCellView toCell = gamecells[to.getRow()][to.getCol()];
+            float fromX = from.getCol() * gameCellWidth + fromCell.candidateCenterX(from.getValue());
+            float fromY = from.getRow() * gameCellHeight + fromCell.candidateCenterY(from.getValue());
+            float toX = to.getCol() * gameCellWidth + toCell.candidateCenterX(to.getValue());
+            float toY = to.getRow() * gameCellHeight + toCell.candidateCenterY(to.getValue());
+            canvas.drawLine(fromX, fromY, toX, toY, linkPaint);
+        }
+    }
+
 }

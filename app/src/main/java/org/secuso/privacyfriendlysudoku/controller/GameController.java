@@ -66,6 +66,8 @@ public class GameController implements IModelChangedListener, Parcelable {
     private int selectedCol = -1;
     private int selectedValue = 0;
     private int highlightValue = 0;
+    private transient GameHint activeHint;
+    private transient int activeHintFrame = -1;
 
     private LinkedList<IHighlightChangedListener> highlightListeners = new LinkedList<>();
     private LinkedList<IGameSolvedListener> solvedListeners = new LinkedList<>();
@@ -226,7 +228,15 @@ public class GameController implements IModelChangedListener, Parcelable {
      * returned hint is applied.
      */
     public GameHint getNextHint() {
-        return HumanHintEngine.findHint(gameBoard, solve());
+        Symbol symbol = Symbol.Default;
+        if(settings != null) {
+            try {
+                symbol = Symbol.valueOf(settings.getString("pref_symbols", Symbol.Default.name()));
+            } catch(IllegalArgumentException ignored) {
+                symbol = Symbol.Default;
+            }
+        }
+        return HumanHintEngine.findHint(gameBoard, solve(), symbol);
     }
 
     /**
@@ -236,6 +246,8 @@ public class GameController implements IModelChangedListener, Parcelable {
         if(hint == null) {
             return;
         }
+        activeHint = hint;
+        activeHintFrame = -1;
         selectedRow = hint.getRow();
         selectedCol = hint.getCol();
         selectedValue = 0;
@@ -246,6 +258,23 @@ public class GameController implements IModelChangedListener, Parcelable {
         notifyHighlightChangedListeners();
     }
 
+    /** Display the matching visual evidence while the hint dialog moves between pages. */
+    public void showHintFrame(int detailIndex) {
+        if(activeHint == null) {
+            return;
+        }
+        activeHintFrame = detailIndex;
+        notifyHighlightChangedListeners();
+    }
+
+    public GameHint getActiveHint() {
+        return activeHint;
+    }
+
+    public int getActiveHintFrame() {
+        return activeHintFrame;
+    }
+
     /**
      * Apply the one board change offered by a previously displayed hint as an undoable action.
      */
@@ -253,10 +282,33 @@ public class GameController implements IModelChangedListener, Parcelable {
         if(hint == null) {
             return;
         }
-        if(hint.getAction() == GameHint.Action.CLEAR_VALUE) {
-            deleteValue(hint.getRow(), hint.getCol());
-        } else {
-            setValue(hint.getRow(), hint.getCol(), hint.getValue());
+        if(hint.shouldApplyCandidatePreview()) {
+            for(int row = 0; row < size; row++) {
+                for(int col = 0; col < size; col++) {
+                    GameCell cell = gameBoard.getCell(row, col);
+                    if(!cell.isFixed() && !cell.hasValue()) {
+                        cell.setNotes(hint.getPreviewNotes(row, col));
+                    }
+                }
+            }
+        }
+        switch(hint.getAction()) {
+            case CLEAR_VALUE:
+                deleteValue(hint.getRow(), hint.getCol());
+                break;
+            case REMOVE_CANDIDATES:
+                for(GameHint.Candidate candidate : hint.getEliminations()) {
+                    gameBoard.getCell(candidate.getRow(), candidate.getCol())
+                            .deleteNote(candidate.getValue());
+                }
+                break;
+            case PLACE_VALUE:
+            default:
+                setValue(hint.getRow(), hint.getCol(), hint.getValue());
+                if(hint.shouldApplyCandidatePreview()) {
+                    deleteNotes(getConnectedCells(hint.getRow(), hint.getCol()), hint.getValue());
+                }
+                break;
         }
         undoRedoManager.addState(gameBoard);
         highlightValue = hint.getValue();
@@ -265,6 +317,8 @@ public class GameController implements IModelChangedListener, Parcelable {
 
     /** Clear the temporary board highlighting used while an explanation is open. */
     public void endHint() {
+        activeHint = null;
+        activeHintFrame = -1;
         resetSelects();
     }
 

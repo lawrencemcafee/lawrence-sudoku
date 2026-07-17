@@ -290,6 +290,7 @@ public class GameControllerTest {
         assertNotNull(hint);
         assertEquals("Mistake Found", hint.getTitle());
         assertEquals(GameHint.Action.CLEAR_VALUE, hint.getAction());
+        assertFalse(hint.shouldApplyCandidatePreview());
         assertEquals(0, hint.getRow());
         assertEquals(1, hint.getCol());
 
@@ -306,10 +307,15 @@ public class GameControllerTest {
                 GameType.Default_9x9, hardPuzzle, null, null));
 
         boolean usedAdvancedTechnique = false;
-        for(int move = 0; move < 81 && !hardController.checkIfBoardIsFilled(); move++) {
+        for(int move = 0; move < 2000 && !hardController.checkIfBoardIsFilled(); move++) {
             GameHint hint = hardController.getNextHint();
             assertNotNull(hint);
             assertNotEquals("Trial and Elimination", hint.getTitle());
+            assertFalse(hint.getSummary().contains("only leads to a valid completion"));
+            for(GameHint.Candidate elimination : hint.getEliminations()) {
+                assertNotEquals(hardController.solve()[elimination.getRow() * hardController.getSize()
+                        + elimination.getCol()], elimination.getValue());
+            }
             if(hint.getTitle().equals("Pointing Candidates")
                     || hint.getTitle().equals("Claiming Candidates")
                     || hint.getTitle().equals("Naked Pair")
@@ -321,6 +327,70 @@ public class GameControllerTest {
 
         assertTrue(usedAdvancedTechnique);
         assertTrue(hardController.isSolved());
+    }
+
+    @Test
+    public void candidateHintCancelApplyUndoAndRedoPreserveCandidateStateTest() {
+        int[] hardPuzzle = codeToPuzzle(
+                "000800400008004093009003060000700000000400000060002900091000670200000100403006802");
+        GameController hardController = new GameController();
+        hardController.loadLevel(new GameInfoContainer(5, GameDifficulty.Hard,
+                GameType.Default_9x9, hardPuzzle, null, null));
+
+        GameHint eliminationHint = null;
+        for(int move = 0; move < 200 && eliminationHint == null; move++) {
+            GameHint hint = hardController.getNextHint();
+            assertNotNull(hint);
+            if(hint.getAction() == GameHint.Action.REMOVE_CANDIDATES) {
+                eliminationHint = hint;
+            } else {
+                hardController.applyHint(hint);
+            }
+        }
+        assertNotNull(eliminationHint);
+        GameHint.Candidate target = eliminationHint.getEliminations().get(0);
+        int expected = hardController.solve()[target.getRow() * hardController.getSize()
+                + target.getCol()];
+
+        boolean[] before = hardController.getNotes(target.getRow(), target.getCol());
+        hardController.beginHint(eliminationHint);
+        hardController.showHintFrame(0);
+        hardController.endHint();
+        assertArrayEquals(before, hardController.getNotes(target.getRow(), target.getCol()));
+
+        hardController.applyHint(eliminationHint);
+        assertFalse(hardController.getNotes(target.getRow(), target.getCol())[target.getValue() - 1]);
+        assertTrue(hardController.getNotes(target.getRow(), target.getCol())[expected - 1]);
+
+        hardController.UnDo();
+        assertArrayEquals(before, hardController.getNotes(target.getRow(), target.getCol()));
+        hardController.ReDo();
+        assertFalse(hardController.getNotes(target.getRow(), target.getCol())[target.getValue() - 1]);
+        assertTrue(hardController.getNotes(target.getRow(), target.getCol())[expected - 1]);
+    }
+
+    @Test
+    public void repairedCandidateNotesAreDisclosedAndAppliedAtomicallyTest() {
+        controller.selectCell(0, 1);
+        controller.toggleSelectedCellsNote(5);
+        boolean[] original = controller.getNotes(0, 1);
+
+        GameHint hint = controller.getNextHint();
+
+        assertNotNull(hint);
+        assertTrue(hint.getRepairedCandidateCount() >= 2);
+        assertTrue(hint.getDetails().get(0).contains("reconciled"));
+        controller.beginHint(hint);
+        controller.endHint();
+        assertArrayEquals(original, controller.getNotes(0, 1));
+
+        controller.applyHint(hint);
+        if(controller.getValue(0, 1) == 0) {
+            assertFalse(controller.getNotes(0, 1)[4]);
+            assertTrue(controller.getNotes(0, 1)[7]);
+        }
+        controller.UnDo();
+        assertArrayEquals(original, controller.getNotes(0, 1));
     }
 
     private int[] codeToPuzzle(String code) {

@@ -16,12 +16,15 @@
  */
 package org.secuso.privacyfriendlysudoku.ui.view;
 
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -37,6 +40,10 @@ import org.secuso.privacyfriendlysudoku.game.listener.IHighlightChangedListener;
 import static org.secuso.privacyfriendlysudoku.ui.view.SudokuButtonType.Spacer;
 import static org.secuso.privacyfriendlysudoku.ui.view.SudokuButtonType.getSpecialButtons;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 /**
  * Created by TMZ_LToP on 17.11.2015.
  */
@@ -51,6 +58,10 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
     Canvas canvas;
     Context context;
     float buttonMargin;
+    private ExecutorService hintExecutor;
+    private Future<?> hintTask;
+    private AlertDialog thinkingDialog;
+    private int hintRequestId;
 
     OnClickListener listener = new OnClickListener() {
         @Override
@@ -81,13 +92,7 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
                         gameController.UnDo();
                         break;
                     case Hint:
-                        GameHint hint = gameController.getNextHint();
-                        if(hint != null) {
-                            new HumanHintDialog(context, gameController, hint).show();
-                        } else {
-                            Toast.makeText(getContext(), R.string.hint_unavailable,
-                                    Toast.LENGTH_SHORT).show();
-                        }
+                        requestHint();
                         break;
                     default:
                         break;
@@ -106,6 +111,94 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
 
         setWeightSum(fixedButtonsCount);
         this.context = context;
+    }
+
+    private void requestHint() {
+        if(hintTask != null && !hintTask.isDone()) {
+            return;
+        }
+        final int requestId = ++hintRequestId;
+        if(hintExecutor == null || hintExecutor.isShutdown()) {
+            hintExecutor = Executors.newSingleThreadExecutor();
+        }
+        setHintButtonEnabled(false);
+        thinkingDialog = new AlertDialog.Builder(context, R.style.AppTheme_Dialog)
+                .setMessage(R.string.hint_thinking)
+                .setNegativeButton(R.string.hint_cancel, (dialog, which) -> cancelHintRequest())
+                .setOnCancelListener(dialog -> cancelHintRequest())
+                .create();
+        thinkingDialog.setCanceledOnTouchOutside(false);
+        thinkingDialog.show();
+
+        hintTask = hintExecutor.submit(() -> {
+            try {
+                GameHint hint = gameController.getNextHint();
+                post(() -> deliverHint(requestId, hint, null));
+            } catch(RuntimeException exception) {
+                Log.e("LudokuHint", "Unable to calculate a hint", exception);
+                post(() -> deliverHint(requestId, null, exception));
+            }
+        });
+    }
+
+    private void deliverHint(int requestId, GameHint hint, RuntimeException error) {
+        if(requestId != hintRequestId || getWindowToken() == null) {
+            return;
+        }
+        if(thinkingDialog != null && thinkingDialog.isShowing()) {
+            thinkingDialog.dismiss();
+        }
+        thinkingDialog = null;
+        hintTask = null;
+        setHintButtonEnabled(true);
+        if(context instanceof Activity) {
+            Activity activity = (Activity) context;
+            if(activity.isFinishing() || activity.isDestroyed()) {
+                return;
+            }
+        }
+        if(error != null) {
+            Toast.makeText(getContext(), R.string.hint_error, Toast.LENGTH_LONG).show();
+        } else if(hint != null) {
+            new HumanHintDialog(context, gameController, hint).show();
+        } else {
+            Toast.makeText(getContext(), R.string.hint_unavailable, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void cancelHintRequest() {
+        hintRequestId++;
+        if(hintTask != null) {
+            hintTask.cancel(true);
+            hintTask = null;
+        }
+        if(thinkingDialog != null && thinkingDialog.isShowing()) {
+            thinkingDialog.dismiss();
+        }
+        thinkingDialog = null;
+        setHintButtonEnabled(true);
+    }
+
+    private void setHintButtonEnabled(boolean enabled) {
+        if(fixedButtons == null) {
+            return;
+        }
+        for(SudokuSpecialButton button : fixedButtons) {
+            if(button != null && button.getType() == SudokuButtonType.Hint) {
+                button.setEnabled(enabled);
+                button.setAlpha(enabled ? 1f : 0.45f);
+            }
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        cancelHintRequest();
+        if(hintExecutor != null) {
+            hintExecutor.shutdownNow();
+            hintExecutor = null;
+        }
+        super.onDetachedFromWindow();
     }
 
     public void setButtonsEnabled(boolean enabled) {

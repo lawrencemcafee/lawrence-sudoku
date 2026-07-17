@@ -31,6 +31,7 @@ import android.widget.RelativeLayout;
 
 import org.secuso.privacyfriendlysudoku.R;
 import org.secuso.privacyfriendlysudoku.controller.Symbol;
+import org.secuso.privacyfriendlysudoku.controller.hints.GameHint;
 import org.secuso.privacyfriendlysudoku.game.GameCell;
 
 /**
@@ -59,6 +60,8 @@ public class SudokuCellView extends View {
     int backgroundValueHighlightedColor;
     int backgroundValueHighlightedSelectedColor;
     int textColor;
+    private GameHint activeHint;
+    private int activeHintFrame = -1;
 
     public SudokuCellView(Context context, AttributeSet attrs){
         super(context);
@@ -115,6 +118,11 @@ public class SudokuCellView extends View {
         this.highlightType = highlightType;
     }
 
+    public void setHintOverlay(GameHint hint, int frameIndex) {
+        activeHint = hint;
+        activeHintFrame = frameIndex;
+    }
+
     /*@Override
     public boolean onTouchEvent(MotionEvent motionEvent) {
         if(mGameCell == null) return false;
@@ -165,6 +173,8 @@ public class SudokuCellView extends View {
 
         drawBackground(canvas, 3, 3, mWidth - 3, mHeight - 3, p);
 
+        drawHintBackground(canvas);
+
         // if there is no mGameCell .. we can not retrieve the information to draw
         if(mGameCell != null) {
             drawValue(canvas);
@@ -177,28 +187,10 @@ public class SudokuCellView extends View {
     }
 
     public void drawValue(Canvas canvas) {
-        Paint p = new Paint();
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setColor(textColor);
-        int root = (int) Math.sqrt(size);
-        int j= root+1;
-        int k = root;
         if(mGameCell.getValue() == 0) {
-            for (int i = 0; i < mGameCell.getNotes().length; i++) {
-                if (mGameCell.getNotes()[i]) {
-                    p.setTypeface(Typeface.SANS_SERIF);
-                    p.setTextSize(mWidth / 4);
-                    p.setTextAlign(Paint.Align.RIGHT);
-                    canvas.drawText(Symbol.getSymbol(symbolsToUse, i),(mWidth*1/(size+root))*k,(mWidth*1/(size+root+1))*j,p);
-                    /*canvas.drawText(String.valueOf(1), (mWidth * 1 / 12)*3, (mWidth* 1 / 12)*3, p);
-                    canvas.drawText(String.valueOf(2),(mWidth*1/12)*7, (mWidth* 1 / 12)*7,p );
-                    canvas.drawText(String.valueOf(3),(mWidth*1/12)*11, (mWidth* 1 / 12)*11,p );*/
-                }
-                k+=root+1;
-                if (k > (size+root)) {
-                    k = root;
-                    j +=root+1;
-                }
-            }
+            drawCandidates(canvas, p);
             return;
         }
 
@@ -210,6 +202,75 @@ public class SudokuCellView extends View {
         p.setTextSize(Math.min(mHeight * 3 / 4, mHeight * 3 / 4));
         p.setTextAlign(Paint.Align.CENTER);
         canvas.drawText(Symbol.getSymbol(symbolsToUse, mGameCell.getValue()-1), mHeight / 2, mHeight / 2 + mHeight / 4, p);
+    }
+
+    private void drawHintBackground(Canvas canvas) {
+        if(activeHint == null) {
+            return;
+        }
+        GameHint.Mark mark = activeHint.getOverlayFrame(activeHintFrame)
+                .getCellMark(mRow, mCol);
+        if(mark == null) {
+            return;
+        }
+        Paint overlay = new Paint();
+        overlay.setColor(HintPalette.colorFor(mark));
+        overlay.setAlpha(mark == GameHint.Mark.CONTRADICTION ? 90 : 55);
+        drawBackground(canvas, 3, 3, mWidth - 3, mHeight - 3, overlay);
+    }
+
+    private void drawCandidates(Canvas canvas, Paint paint) {
+        int columns = Math.max(1, mSectionWidth);
+        int rows = Math.max(1, mSectionHeight);
+        float slotWidth = mWidth / (float) columns;
+        float slotHeight = mHeight / (float) rows;
+        paint.setTypeface(Typeface.SANS_SERIF);
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setTextSize(Math.min(slotWidth, slotHeight) * 0.58f);
+
+        GameHint.HintFrame frame = activeHint == null ? null
+                : activeHint.getOverlayFrame(activeHintFrame);
+        boolean preview = activeHint != null && activeHint.shouldApplyCandidatePreview();
+        for(int value = 1; value <= size; value++) {
+            GameHint.Mark mark = frame == null ? null
+                    : frame.getCandidateMark(mRow, mCol, value);
+            boolean isElimination = activeHint != null
+                    && activeHint.eliminates(mRow, mCol, value);
+            boolean visible = preview
+                    ? activeHint.hasPreviewCandidate(mRow, mCol, value)
+                    : mGameCell.getNotes()[value - 1];
+            if(mark != null) visible = true;
+            if(!visible && !isElimination) continue;
+
+            GameHint.Mark effectiveMark = isElimination ? GameHint.Mark.ELIMINATE : mark;
+            paint.setColor(effectiveMark == null ? textColor : HintPalette.colorFor(effectiveMark));
+            paint.setTypeface(effectiveMark == null ? Typeface.SANS_SERIF : Typeface.DEFAULT_BOLD);
+            float x = candidateCenterX(value);
+            float y = candidateCenterY(value) - (paint.ascent() + paint.descent()) / 2f;
+            String glyph = Symbol.getSymbol(symbolsToUse, value - 1);
+            canvas.drawText(glyph, x, y, paint);
+
+            if(isElimination || effectiveMark == GameHint.Mark.CONTRADICTION) {
+                Paint strike = new Paint(Paint.ANTI_ALIAS_FLAG);
+                strike.setColor(HintPalette.colorFor(GameHint.Mark.ELIMINATE));
+                strike.setStrokeWidth(Math.max(2f, Math.min(slotWidth, slotHeight) / 12f));
+                canvas.drawLine(x - slotWidth * 0.28f, candidateCenterY(value) + slotHeight * 0.20f,
+                        x + slotWidth * 0.28f, candidateCenterY(value) - slotHeight * 0.20f, strike);
+            }
+        }
+    }
+
+    public float candidateCenterX(int value) {
+        int columns = Math.max(1, mSectionWidth);
+        float slotWidth = mWidth / (float) columns;
+        return ((value - 1) % columns + 0.5f) * slotWidth;
+    }
+
+    public float candidateCenterY(int value) {
+        int columns = Math.max(1, mSectionWidth);
+        int rows = Math.max(1, mSectionHeight);
+        float slotHeight = mHeight / (float) rows;
+        return ((value - 1) / columns + 0.5f) * slotHeight;
     }
 
     public int getRow() {

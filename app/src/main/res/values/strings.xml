@@ -104,6 +104,9 @@
     <string name="hint_back">Back</string>
     <string name="hint_close">Close</string>
     <string name="hint_unavailable">No hint is available for this board.</string>
+    <string name="hint_thinking">Looking for the simplest human-readable deduction…</string>
+    <string name="hint_cancel">Cancel</string>
+    <string name="hint_error">Ludoku could not calculate a hint for this board.</string>
     <string name="hint_detail_title">%1$s · %2$d of %3$d</string>
     <string name="reset_confirmation">Are you sure you want to reset the game board?</string>
     <string name="reset_confirmation_confirm">Reset</string>
