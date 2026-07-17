@@ -82,6 +82,9 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
                         keyboard.updateNotesEnabled();
                         onHighlightChanged();
                         break;
+                    case FillCandidates:
+                        gameController.fillValidCandidates();
+                        break;
                     case Do:
                         gameController.ReDo();
                         break;
@@ -160,6 +163,9 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
             fixedButtons[i].setLayoutParams(p);
             fixedButtons[i].setType(t);
             fixedButtons[i].setImageDrawable(ContextCompat.getDrawable(context, fixedButtons[i].getType().getResID()));
+            if(t == SudokuButtonType.FillCandidates) {
+                fixedButtons[i].setContentDescription(context.getString(R.string.help_fill_candidates));
+            }
             fixedButtons[i].setScaleType(ImageView.ScaleType.FIT_XY);
             fixedButtons[i].setAdjustViewBounds(true);
             fixedButtons[i].setOnClickListener(listener);

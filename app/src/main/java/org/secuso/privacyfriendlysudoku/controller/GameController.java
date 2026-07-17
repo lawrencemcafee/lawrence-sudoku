@@ -40,6 +40,7 @@ import org.secuso.privacyfriendlysudoku.game.listener.IModelChangedListener;
 import org.secuso.privacyfriendlysudoku.game.listener.ITimerListener;
 import org.secuso.privacyfriendlysudoku.ui.GameActivity;
 
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.LinkedList;
@@ -474,6 +475,44 @@ public class GameController implements IModelChangedListener, Parcelable {
         }
         c.toggleNote(value);
         //notifyListeners();
+    }
+
+    /**
+     * Return every value that can be entered in an empty cell without duplicating a value in
+     * its row, column, or section. Filled cells have no candidates.
+     */
+    public boolean[] getValidCandidates(int row, int col) {
+        boolean[] candidates = new boolean[size];
+        GameCell cell = gameBoard.getCell(row, col);
+        if(cell.hasValue()) {
+            return candidates;
+        }
+
+        Arrays.fill(candidates, true);
+        for(GameCell connectedCell : getConnectedCells(row, col)) {
+            int value = connectedCell.getValue();
+            if(isValidNumber(value)) {
+                candidates[value - 1] = false;
+            }
+        }
+        return candidates;
+    }
+
+    /**
+     * Replace the notes in every empty cell with all currently valid candidates. The complete
+     * board update is stored as one undoable action.
+     */
+    public void fillValidCandidates() {
+        for(int row = 0; row < size; row++) {
+            for(int col = 0; col < size; col++) {
+                GameCell cell = gameBoard.getCell(row, col);
+                if(!cell.isFixed() && !cell.hasValue()) {
+                    cell.setNotes(getValidCandidates(row, col));
+                }
+            }
+        }
+        undoRedoManager.addState(gameBoard);
+        notifyHighlightChangedListeners();
     }
 
     /** Debug only method

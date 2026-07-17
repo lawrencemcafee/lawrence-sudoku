@@ -34,6 +34,10 @@
             android:selectable="false"
             android:icon="@drawable/ic_create_black_48dp"
             android:summary="@string/help_notes_summary"/>
+        <Preference android:title="@string/help_fill_candidates"
+            android:selectable="false"
+            android:icon="@drawable/ic_fill_candidates_black_48dp"
+            android:summary="@string/help_fill_candidates_summary"/>
         <Preference android:title="@string/finalize"
             android:selectable="false"
             android:icon="@drawable/ic_finalize"

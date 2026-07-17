@@ -228,6 +228,34 @@ public class GameControllerTest {
     }
 
     @Test
+    public void getValidCandidatesTest() {
+        boolean[] expected9x9 = {false, false, false, false, false, true, false, true, false};
+        boolean[] expected12x12 = {false, false, true, false, true, false,
+                true, false, false, false, true, false};
+
+        assertArrayEquals(expected9x9, controller.getValidCandidates(0, 1));
+        assertArrayEquals(expected12x12, controller2.getValidCandidates(0, 0));
+        assertArrayEquals(new boolean[9], controller.getValidCandidates(0, 0));
+    }
+
+    @Test
+    public void fillValidCandidatesIsUndoableTest() {
+        boolean[] expected = {false, false, false, false, false, true, false, true, false};
+        controller.setNote(0, 1, 1);
+
+        controller.fillValidCandidates();
+
+        assertArrayEquals(expected, controller.getNotes(0, 1));
+        assertTrue(controller.isUndoAvailable());
+
+        controller.UnDo();
+        assertArrayEquals(new boolean[9], controller.getNotes(0, 1));
+
+        controller.ReDo();
+        assertArrayEquals(expected, controller.getNotes(0, 1));
+    }
+
+    @Test
     public void selectCellTest() {
 
         controller.selectCell(0, 1);

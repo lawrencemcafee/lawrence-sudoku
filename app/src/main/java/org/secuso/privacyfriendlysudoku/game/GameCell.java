@@ -122,6 +122,27 @@ public class GameCell implements Cloneable, Parcelable {
     }
 
     /**
+     * Replace all notes in this cell with the supplied set.
+     *
+     * @param newNotes one entry for each value supported by the board
+     */
+    public void setNotes(boolean[] newNotes) {
+        if(newNotes == null || newNotes.length != size) {
+            throw new IllegalArgumentException("Notes must have length " + size + ".");
+        }
+        if(!isFixed() && !hasValue() && !Arrays.equals(notes, newNotes)) {
+            notes = Arrays.copyOf(newNotes, newNotes.length);
+            noteCount = 0;
+            for(boolean note : notes) {
+                if(note) {
+                    noteCount++;
+                }
+            }
+            notifyListeners();
+        }
+    }
+
+    /**
      * Clear the notes array (set everything to false).
      */
     public void deleteNotes() {

@@ -33,6 +33,7 @@ public enum SudokuButtonType {
     Undo(R.drawable.ic_undo_black_48dp),
     Hint(R.drawable.ic_lightbulb_outline_black_48dp),
     NoteToggle(R.drawable.ic_create_black_48dp),
+    FillCandidates(R.drawable.ic_fill_candidates_black_48dp),
     Spacer(R.drawable.ic_accessibility_black_48dp),//placeholder
     Delete(R.drawable.ic_delete_black_48dp),
     Reset(R.drawable.ic_settings_backup_restore_black_48dp);
@@ -55,6 +56,7 @@ public enum SudokuButtonType {
         //result.add(Spacer);
         result.add(Delete);
         result.add(NoteToggle);
+        result.add(FillCandidates);
         return result;
     }
     public static String getName(SudokuButtonType type) {
@@ -63,11 +65,11 @@ public enum SudokuButtonType {
             case Undo: return "Un";
             case Hint: return "Hnt";
             case NoteToggle: return "On";
+            case FillCandidates: return "Cand";
             case Spacer: return "";
             case Delete: return "Del";
             default:return "NotSet";
         }
     }
 }
-
 

@@ -143,6 +143,8 @@
     <string name="help_delete_summary">Deletes a selected field</string>
     <string name="help_notes">Note toggle button</string>
     <string name="help_notes_summary">Toggles if numbers should be set as notes or as values in a field</string>
+    <string name="help_fill_candidates">Fill candidates button</string>
+    <string name="help_fill_candidates_summary">Replaces notes in every empty field with all values that do not already appear in its row, column, or box</string>
     <string name="finalize">Finalize button</string>
     <string name="finalize_summary">Confirms the numeric input in the create sudoku game mode </string>
     <string name="help_import">Import button</string>
