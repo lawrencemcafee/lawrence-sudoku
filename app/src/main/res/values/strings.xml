@@ -95,9 +95,16 @@
     <string name="gametype_default_12x12" translatable="false">Sudoku 12x12</string>
     <string name="gametype_x_9x9" translatable="false">X Sudoku 9x9</string>
     <string name="gametype_hyper_9x9" translatable="false">Hyper Sudoku 9x9</string>
-    <string name="hint_usage">Select a valid field and then press the hint button to reveal the solution.</string>
+    <string name="hint_usage">Press the hint button to explain the next logical move.</string>
     <string name="hint_confirmation">Are you sure you want to use this hint? When using hints, you will not be able to achieve a personal best time.</string>
     <string name="hint_confirmation_confirm">Use</string>
+    <string name="hint_apply">Apply</string>
+    <string name="hint_details">Details</string>
+    <string name="hint_next">Next</string>
+    <string name="hint_back">Back</string>
+    <string name="hint_close">Close</string>
+    <string name="hint_unavailable">No hint is available for this board.</string>
+    <string name="hint_detail_title">%1$s · %2$d of %3$d</string>
     <string name="reset_confirmation">Are you sure you want to reset the game board?</string>
     <string name="reset_confirmation_confirm">Reset</string>
     <string name="share_confirmation_confirm">Share</string>
@@ -138,7 +145,7 @@
     <string name="help_undo">Undo button</string>
     <string name="help_undo_summary">Undoes the last action</string>
     <string name="help_hint">Hint button</string>
-    <string name="help_hint_summary">Unveals the selected field\nWarning: When used, the current game can not count towards a new best time.</string>
+    <string name="help_hint_summary">Explains the next logical move and lets you apply it after reviewing the reasoning.\nWarning: When used, the current game can not count towards a new best time.</string>
     <string name="help_delete">Delete button</string>
     <string name="help_delete_summary">Deletes a selected field</string>
     <string name="help_notes">Note toggle button</string>

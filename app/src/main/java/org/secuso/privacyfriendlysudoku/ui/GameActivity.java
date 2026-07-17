@@ -64,7 +64,6 @@ import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.game.listener.IGameSolvedListener;
 import org.secuso.privacyfriendlysudoku.game.listener.ITimerListener;
-import org.secuso.privacyfriendlysudoku.ui.listener.IHintDialogFragmentListener;
 import org.secuso.privacyfriendlysudoku.ui.listener.IResetDialogFragmentListener;
 import org.secuso.privacyfriendlysudoku.ui.listener.IShareDialogFragmentListener;
 import org.secuso.privacyfriendlysudoku.R;
@@ -79,7 +78,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
-public class GameActivity extends BaseActivity implements NavigationView.OnNavigationItemSelectedListener, IGameSolvedListener ,ITimerListener, IHintDialogFragmentListener, IResetDialogFragmentListener, IShareDialogFragmentListener {
+public class GameActivity extends BaseActivity implements NavigationView.OnNavigationItemSelectedListener, IGameSolvedListener ,ITimerListener, IResetDialogFragmentListener, IShareDialogFragmentListener {
 
      public static final List<Uri> validUris = Arrays.asList(
              Uri.parse("https://sudoku.secuso.org"),
@@ -348,7 +347,7 @@ public class GameActivity extends BaseActivity implements NavigationView.OnNavig
 
         //set Special keys
         specialButtonLayout = (SudokuSpecialButtonLayout) findViewById(R.id.sudokuSpecialLayout);
-        specialButtonLayout.setButtons(p.x, gameController, keyboard, getFragmentManager(), orientation, GameActivity.this);
+        specialButtonLayout.setButtons(p.x, gameController, keyboard, orientation, GameActivity.this);
 
         //set TimerView
         timerView = (TextView)findViewById(R.id.timerView);
@@ -644,11 +643,6 @@ public class GameActivity extends BaseActivity implements NavigationView.OnNavig
         if(gameSolved || !startGame) return;
         // save time
         gameController.saveGame(this);
-    }
-
-    @Override
-    public void onHintDialogPositiveClick() {
-        gameController.hint();
     }
 
     @Override

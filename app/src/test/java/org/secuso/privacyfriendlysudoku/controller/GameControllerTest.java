@@ -20,6 +20,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.secuso.privacyfriendlysudoku.controller.helper.GameInfoContainer;
+import org.secuso.privacyfriendlysudoku.controller.hints.GameHint;
 import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 
@@ -253,6 +254,81 @@ public class GameControllerTest {
 
         controller.ReDo();
         assertArrayEquals(expected, controller.getNotes(0, 1));
+    }
+
+    @Test
+    public void explainedHintIsSolutionCorrectAndUndoableTest() {
+        GameHint hint = controller.getNextHint();
+
+        assertNotNull(hint);
+        assertEquals(GameHint.Action.PLACE_VALUE, hint.getAction());
+        assertFalse(hint.getSummary().isEmpty());
+        assertFalse(hint.getDetails().isEmpty());
+        assertEquals(controller.solve()[hint.getRow() * controller.getSize() + hint.getCol()],
+                hint.getValue());
+
+        int hintsBefore = controller.getUsedHints();
+        controller.beginHint(hint);
+        assertEquals(hintsBefore + 1, controller.getUsedHints());
+        assertEquals(hint.getRow(), controller.getSelectedRow());
+        assertEquals(hint.getCol(), controller.getSelectedCol());
+
+        controller.applyHint(hint);
+        assertEquals(hint.getValue(), controller.getValue(hint.getRow(), hint.getCol()));
+        assertTrue(controller.isUndoAvailable());
+
+        controller.UnDo();
+        assertEquals(0, controller.getValue(hint.getRow(), hint.getCol()));
+    }
+
+    @Test
+    public void explainedHintClearsIncorrectEntryBeforeSuggestingMoveTest() {
+        controller.setValue(0, 1, 6);
+
+        GameHint hint = controller.getNextHint();
+
+        assertNotNull(hint);
+        assertEquals("Mistake Found", hint.getTitle());
+        assertEquals(GameHint.Action.CLEAR_VALUE, hint.getAction());
+        assertEquals(0, hint.getRow());
+        assertEquals(1, hint.getCol());
+
+        controller.applyHint(hint);
+        assertEquals(0, controller.getValue(0, 1));
+    }
+
+    @Test
+    public void hardPuzzleCanBeExplainedWithoutTrialAndEliminationTest() {
+        int[] hardPuzzle = codeToPuzzle(
+                "000800400008004093009003060000700000000400000060002900091000670200000100403006802");
+        GameController hardController = new GameController();
+        hardController.loadLevel(new GameInfoContainer(4, GameDifficulty.Hard,
+                GameType.Default_9x9, hardPuzzle, null, null));
+
+        boolean usedAdvancedTechnique = false;
+        for(int move = 0; move < 81 && !hardController.checkIfBoardIsFilled(); move++) {
+            GameHint hint = hardController.getNextHint();
+            assertNotNull(hint);
+            assertNotEquals("Trial and Elimination", hint.getTitle());
+            if(hint.getTitle().equals("Pointing Candidates")
+                    || hint.getTitle().equals("Claiming Candidates")
+                    || hint.getTitle().equals("Naked Pair")
+                    || hint.getTitle().equals("Hidden Pair")) {
+                usedAdvancedTechnique = true;
+            }
+            hardController.applyHint(hint);
+        }
+
+        assertTrue(usedAdvancedTechnique);
+        assertTrue(hardController.isSolved());
+    }
+
+    private int[] codeToPuzzle(String code) {
+        int[] puzzle = new int[code.length()];
+        for(int i = 0; i < code.length(); i++) {
+            puzzle[i] = code.charAt(i) - '0';
+        }
+        return puzzle;
     }
 
     @Test

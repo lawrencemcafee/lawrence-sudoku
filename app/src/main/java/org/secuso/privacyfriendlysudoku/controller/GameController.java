@@ -25,6 +25,8 @@ import android.os.Parcelable;
 import org.secuso.privacyfriendlysudoku.controller.database.DatabaseHelper;
 import org.secuso.privacyfriendlysudoku.controller.database.model.DailySudoku;
 import org.secuso.privacyfriendlysudoku.controller.helper.GameInfoContainer;
+import org.secuso.privacyfriendlysudoku.controller.hints.GameHint;
+import org.secuso.privacyfriendlysudoku.controller.hints.HumanHintEngine;
 import org.secuso.privacyfriendlysudoku.controller.qqwing.QQWing;
 import org.secuso.privacyfriendlysudoku.game.CellConflict;
 import org.secuso.privacyfriendlysudoku.game.CellConflictList;
@@ -163,6 +165,7 @@ public class GameController implements IModelChangedListener, Parcelable {
         this.time = gic.getTimePlayed();
         this.usedHints = gic.getHintsUsed();
         this.gameIsCustom = gic.isCustom();
+        this.solution = new int[0];
 
         setGameType(gic.getGameType());
         this.gameBoard = new GameBoard(gic.getGameType());
@@ -218,23 +221,51 @@ public class GameController implements IModelChangedListener, Parcelable {
         }
     }*/
 
-    public void hint(){
-        if(!isValidCellSelected()) {
+    /**
+     * Find the next explained move from the current board. No board state is changed until the
+     * returned hint is applied.
+     */
+    public GameHint getNextHint() {
+        return HumanHintEngine.findHint(gameBoard, solve());
+    }
+
+    /**
+     * Highlight the move described by a hint and record that the explanation has been shown.
+     */
+    public void beginHint(GameHint hint) {
+        if(hint == null) {
             return;
         }
-
-        int[] solved = solve();
-        // and reveal the selected value.
-        int value = solved[selectedRow * getSize() + selectedCol];
-        setValue(selectedRow, selectedCol, value);
-        // add state to undo
-        undoRedoManager.addState(gameBoard);
-        highlightValue = value;
+        selectedRow = hint.getRow();
+        selectedCol = hint.getCol();
+        selectedValue = 0;
+        highlightValue = hint.getValue();
 
         usedHints++;
-
         notifyHintListener();
         notifyHighlightChangedListeners();
+    }
+
+    /**
+     * Apply the one board change offered by a previously displayed hint as an undoable action.
+     */
+    public void applyHint(GameHint hint) {
+        if(hint == null) {
+            return;
+        }
+        if(hint.getAction() == GameHint.Action.CLEAR_VALUE) {
+            deleteValue(hint.getRow(), hint.getCol());
+        } else {
+            setValue(hint.getRow(), hint.getCol(), hint.getValue());
+        }
+        undoRedoManager.addState(gameBoard);
+        highlightValue = hint.getValue();
+        notifyHighlightChangedListeners();
+    }
+
+    /** Clear the temporary board highlighting used while an explanation is open. */
+    public void endHint() {
+        resetSelects();
     }
 
     private void setGameType(GameType type) {
