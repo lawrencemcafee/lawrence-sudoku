@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Sudoku</string>
+    <string name="app_name" translatable="false">ludoku</string>
     <string name="title_activity_game_view" translatable="false">Sudoku</string>
 
     <string name="cancel">Cancelar</string>
@@ -54,7 +54,7 @@
     <string name="pref_timer_reset_summary">Também reinicia o temporizador, quando reiniciando o tabuleiro do jogo.</string>
 
     <!-- ###ABOUT### -->
-    <string name="app_name_long" translatable="false">Privacy Friendly Sudoku</string>
+    <string name="app_name_long" translatable="false">ludoku</string>
     <string name="version_number">Versão:</string>
     <string name="about_author">Autores:</string>
     <string name="about_author_names" translatable="false">Christopher Beckmann, Timm Lippert</string>

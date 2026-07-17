@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Sudoku</string>
+    <string name="app_name" translatable="false">ludoku</string>
     <string name="title_activity_game_view" translatable="false">Sudoku</string>
     <string name="cancel">Anuluj</string>
     <!-- ###MAIN MENU### -->
