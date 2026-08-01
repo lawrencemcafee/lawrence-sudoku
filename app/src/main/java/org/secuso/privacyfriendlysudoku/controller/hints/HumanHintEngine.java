@@ -66,33 +66,15 @@ public final class HumanHintEngine {
     static GameHint findTechnique(CandidateState state, int[] solution, Symbol symbols,
                                   String technique) {
         HumanHintEngine engine = new HumanHintEngine(null, state, solution, symbols);
-        Deduction deduction;
-        switch(technique) {
-            case "Last Digit": deduction = engine.findLastDigit(); break;
-            case "Naked Single": deduction = engine.findNakedSingle(); break;
-            case "Hidden Single": deduction = engine.findHiddenSingle(); break;
-            case "Pointing Candidates": deduction = engine.findPointing(); break;
-            case "Claiming Candidates": deduction = engine.findClaiming(); break;
-            case "Naked Pair": deduction = engine.findNakedSubset(2); break;
-            case "Naked Triple": deduction = engine.findNakedSubset(3); break;
-            case "Naked Quad": deduction = engine.findNakedSubset(4); break;
-            case "Hidden Pair": deduction = engine.findHiddenSubset(2); break;
-            case "Hidden Triple": deduction = engine.findHiddenSubset(3); break;
-            case "Hidden Quad": deduction = engine.findHiddenSubset(4); break;
-            case "X-Wing": deduction = engine.findFish(2); break;
-            case "Swordfish": deduction = engine.findFish(3); break;
-            case "Jellyfish": deduction = engine.findFish(4); break;
-            case "Skyscraper": deduction = engine.findSkyscraper(); break;
-            case "2-String Kite": deduction = engine.findTwoStringKite(); break;
-            case "XY-Wing": deduction = engine.findXYWing(); break;
-            case "XYZ-Wing": deduction = engine.findXYZWing(); break;
-            case "W-Wing": deduction = engine.findWWing(); break;
-            case "Simple Coloring": deduction = engine.findSimpleColoring(); break;
-            case "X-Chain": deduction = engine.findXChain(); break;
-            case "XY-Chain": deduction = engine.findXYChain(); break;
-            default: throw new IllegalArgumentException("Unknown technique: " + technique);
-        }
+        Deduction deduction = engine.findDeduction(HumanTechnique.fromTitle(technique));
         return deduction == null ? null : engine.toHint(deduction);
+    }
+
+    /** Package-visible entry point used by the complete difficulty grader. */
+    static GameHint findNextHint(CandidateState state, int[] solution, Symbol symbols,
+                                 boolean includeForcing) {
+        HumanHintEngine engine = new HumanHintEngine(null, state, solution, symbols);
+        return engine.findLogicalHint(includeForcing);
     }
 
     static GameHint findForcingHint(CandidateState state, int[] solution, Symbol symbols) {
@@ -110,31 +92,46 @@ public final class HumanHintEngine {
     }
 
     private GameHint findLogicalHint() {
+        return findLogicalHint(true);
+    }
+
+    private GameHint findLogicalHint(boolean includeForcing) {
         if(isComplete()) return null;
-        Deduction deduction = findLastDigit();
-        if(deduction == null) deduction = findNakedSingle();
-        if(deduction == null) deduction = findHiddenSingle();
-        if(deduction == null) deduction = findPointing();
-        if(deduction == null) deduction = findClaiming();
-        if(deduction == null) deduction = findNakedSubset(2);
-        if(deduction == null) deduction = findHiddenSubset(2);
-        if(deduction == null) deduction = findNakedSubset(3);
-        if(deduction == null) deduction = findHiddenSubset(3);
-        if(deduction == null) deduction = findNakedSubset(4);
-        if(deduction == null) deduction = findHiddenSubset(4);
-        if(deduction == null) deduction = findFish(2);
-        if(deduction == null) deduction = findFish(3);
-        if(deduction == null) deduction = findFish(4);
-        if(deduction == null) deduction = findSkyscraper();
-        if(deduction == null) deduction = findTwoStringKite();
-        if(deduction == null) deduction = findXYWing();
-        if(deduction == null) deduction = findXYZWing();
-        if(deduction == null) deduction = findWWing();
-        if(deduction == null) deduction = findSimpleColoring();
-        if(deduction == null) deduction = findXChain();
-        if(deduction == null) deduction = findXYChain();
-        if(deduction == null) deduction = findForcingProof();
-        return deduction == null ? null : toHint(deduction);
+        for(HumanTechnique technique : HumanTechnique.values()) {
+            if(!includeForcing && technique == HumanTechnique.FORCING_CHAIN) break;
+            Deduction deduction = findDeduction(technique);
+            if(deduction != null) return toHint(deduction);
+        }
+        return null;
+    }
+
+    private Deduction findDeduction(HumanTechnique technique) {
+        switch(technique) {
+            case LAST_DIGIT: return findLastDigit();
+            case NAKED_SINGLE: return findNakedSingle();
+            case HIDDEN_SINGLE: return findHiddenSingle();
+            case POINTING_CANDIDATES: return findPointing();
+            case CLAIMING_CANDIDATES: return findClaiming();
+            case NAKED_PAIR: return findNakedSubset(2);
+            case HIDDEN_PAIR: return findHiddenSubset(2);
+            case NAKED_TRIPLE: return findNakedSubset(3);
+            case HIDDEN_TRIPLE: return findHiddenSubset(3);
+            case NAKED_QUAD: return findNakedSubset(4);
+            case HIDDEN_QUAD: return findHiddenSubset(4);
+            case X_WING: return findFish(2);
+            case SKYSCRAPER: return findSkyscraper();
+            case TWO_STRING_KITE: return findTwoStringKite();
+            case SWORDFISH: return findFish(3);
+            case XY_WING: return findXYWing();
+            case XYZ_WING: return findXYZWing();
+            case W_WING: return findWWing();
+            case SIMPLE_COLORING: return findSimpleColoring();
+            case JELLYFISH: return findFish(4);
+            case X_CHAIN: return findXChain();
+            case XY_CHAIN: return findXYChain();
+            case FORCING_CHAIN: return findForcingProof();
+            default: throw new IllegalArgumentException("Unsupported technique: " + technique);
+        }
     }
 
     private Deduction findMistake() {

@@ -1,6 +1,16 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
     <PreferenceCategory android:title="@string/pref_group_game">
+    <ListPreference
+        android:key="pref_difficulty_display"
+        android:title="@string/pref_difficulty_display"
+        android:summary="@string/pref_difficulty_display_summary"
+        android:defaultValue="NUMBERED"
+        android:entries="@array/difficulty_display_entries"
+        android:entryValues="@array/difficulty_display_values"
+        android:negativeButtonText="@null"
+        android:positiveButtonText="@null" />
+
     <SwitchPreference android:id="@+id/pref_automatic_note_deletion"
         android:key="pref_automatic_note_deletion"
         android:title="@string/pref_automatic_note_deletion"

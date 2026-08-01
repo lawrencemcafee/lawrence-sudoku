@@ -56,6 +56,7 @@
 
                 <ImageView
                     android:id="@+id/arrow_left"
+                    android:contentDescription="@string/previous_game_type"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     app:srcCompat="@drawable/ic_keyboard_arrow_left_black_24dp"
@@ -68,6 +69,7 @@
                     android:onClick="onClick"/>
                 <ImageView
                     android:id="@+id/arrow_right"
+                    android:contentDescription="@string/next_game_type"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     app:srcCompat="@drawable/ic_keyboard_arrow_right_black_24dp"
@@ -101,9 +103,9 @@
                     android:text="@string/difficulty_easy"
                     android:textSize="@dimen/main_text_difficulty"/>
                 <TextView android:id="@+id/level_count"
-                    android:text="Levels available:"
+                    android:text="@string/puzzles_ready_initial"
                     android:textStyle="bold"
-                    android:textSize="14dp"
+                    android:textSize="14sp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content" />
 
@@ -130,19 +132,16 @@
                         app:layout_constraintTop_toTopOf="@+id/difficultyBar"
                         app:layout_constraintVertical_bias="0.5" />
 
-                    <RatingBar
+                    <SeekBar
                         android:id="@+id/difficultyBar"
-                        style="@style/RatingBar"
-                        android:layout_width="wrap_content"
+                        android:layout_width="220dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="4dp"
                         android:layout_marginLeft="4dp"
                         android:layout_marginTop="1dp"
                         android:layout_marginBottom="16dp"
-                        android:clickable="true"
-                        android:numStars="4"
-                        android:rating="1"
-                        android:stepSize="1"
+                        android:max="9"
+                        android:progress="4"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toEndOf="@+id/circleButton"

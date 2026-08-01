@@ -23,16 +23,24 @@ import android.provider.BaseColumns;
 
 import org.secuso.privacyfriendlysudoku.controller.Symbol;
 import org.secuso.privacyfriendlysudoku.controller.database.model.*;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.GameType;
+
+import java.nio.charset.Charset;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class LevelColumns implements BaseColumns {
 
     public static final String TABLE_NAME = "levels";
 
-    public static final String DIFFICULTY = "level_difficulty";
+    /** Legacy v2 column retained only for the v2-to-v3 daily-history migration. */
+    public static final String LEGACY_DIFFICULTY = "level_difficulty";
+    public static final String DIFFICULTY_LEVEL = "difficulty_level";
     public static final String GAMETYPE = "level_gametype";
     public static final String PUZZLE = "level_puzzle";
+    public static final String PUZZLE_HASH = "puzzle_hash";
+    public static final String CREATED_AT = "created_at";
 
     private static final String TEXT_TYPE = " TEXT ";
     private static final String INTEGER_TYPE = " INTEGER ";
@@ -40,17 +48,23 @@ public class LevelColumns implements BaseColumns {
 
     public static final String[] PROJECTION = {
             _ID,
-            DIFFICULTY,
+            DIFFICULTY_LEVEL,
             GAMETYPE,
-            PUZZLE
+            PUZZLE,
+            PUZZLE_HASH,
+            CREATED_AT
     };
 
     public static String SQL_CREATE_ENTRIES =
             "CREATE TABLE " + TABLE_NAME + " (" +
                     _ID         + INTEGER_TYPE + " PRIMARY KEY AUTOINCREMENT" + COMMA_SEP +
-                    DIFFICULTY        + TEXT_TYPE + COMMA_SEP +
-                    GAMETYPE  + TEXT_TYPE + COMMA_SEP +
-                    PUZZLE     + TEXT_TYPE + " )";
+                    DIFFICULTY_LEVEL  + INTEGER_TYPE + " NOT NULL CHECK (" +
+                    DIFFICULTY_LEVEL + " BETWEEN 1 AND 10)" + COMMA_SEP +
+                    GAMETYPE  + TEXT_TYPE + " NOT NULL" + COMMA_SEP +
+                    PUZZLE     + TEXT_TYPE + " NOT NULL" + COMMA_SEP +
+                    PUZZLE_HASH + TEXT_TYPE + " NOT NULL" + COMMA_SEP +
+                    CREATED_AT + INTEGER_TYPE + " NOT NULL" + COMMA_SEP +
+                    "UNIQUE (" + GAMETYPE + COMMA_SEP + PUZZLE_HASH + ") )";
     public static String SQL_DELETE_ENTRIES =
             "DROP TABLE IF EXISTS " + TABLE_NAME;
 
@@ -66,8 +80,8 @@ public class LevelColumns implements BaseColumns {
         level.setGameType(gameType);
 
         // *** DIFFICULTY ***
-        String difficultyString = c.getString(c.getColumnIndexOrThrow(LevelColumns.DIFFICULTY));
-        level.setDifficulty(GameDifficulty.valueOf(difficultyString));
+        level.setDifficulty(DifficultyLevel.of(
+                c.getInt(c.getColumnIndexOrThrow(LevelColumns.DIFFICULTY_LEVEL))));
 
         // *** PUZZLE ***
         String puzzleString = c.getString(c.getColumnIndexOrThrow(LevelColumns.PUZZLE));
@@ -91,7 +105,7 @@ public class LevelColumns implements BaseColumns {
             values.put(LevelColumns._ID, record.getId());
         }
         values.put(LevelColumns.GAMETYPE, record.getGameType().name());
-        values.put(LevelColumns.DIFFICULTY, record.getDifficulty().name());
+        values.put(LevelColumns.DIFFICULTY_LEVEL, record.getDifficulty().getValue());
 
         StringBuilder sb = new StringBuilder();
         for(int i = 0; i < record.getPuzzle().length; i++) {
@@ -102,6 +116,20 @@ public class LevelColumns implements BaseColumns {
             }
         }
         values.put(LevelColumns.PUZZLE, sb.toString());
+        values.put(LevelColumns.PUZZLE_HASH, hash(record.getGameType().name() + ":" + sb));
+        values.put(LevelColumns.CREATED_AT, System.currentTimeMillis());
         return values;
+    }
+
+    private static String hash(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(Charset.forName("UTF-8")));
+            StringBuilder result = new StringBuilder(digest.length * 2);
+            for(byte part : digest) result.append(String.format("%02x", part & 0xff));
+            return result.toString();
+        } catch(NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("Every Android runtime must provide SHA-256.", impossible);
+        }
     }
 }

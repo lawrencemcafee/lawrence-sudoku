@@ -37,11 +37,12 @@ import org.secuso.privacyfriendlysudoku.controller.GameStateManager;
 import org.secuso.privacyfriendlysudoku.controller.NewLevelManager;
 import org.secuso.privacyfriendlysudoku.controller.database.DatabaseHelper;
 import org.secuso.privacyfriendlysudoku.controller.database.model.DailySudoku;
+import org.secuso.privacyfriendlysudoku.controller.hints.HumanDifficultyRater;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
-import org.secuso.privacyfriendlysudoku.controller.qqwing.QQWing;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
+import org.secuso.privacyfriendlysudoku.game.DifficultyPreferences;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.R;
 
@@ -116,40 +117,34 @@ public class DailySudokuActivity extends AppCompatActivity {
         dailyId = currentDate.get(Calendar.DAY_OF_MONTH) * 1000000
                 + (currentDate.get(Calendar.MONTH) + 1) * 10000 + currentDate.get(Calendar.YEAR);
 
-        GameDifficulty dailyDifficulty;
+        DifficultyLevel dailyDifficulty;
 
         //only calculate the difficulty of the daily sudoku once a day
         if (settings.getInt("lastCalculated", 0) != dailyId) {
             // generate the daily sudoku
             NewLevelManager newLevelManager = NewLevelManager.getInstance(getApplicationContext(), settings);
             int[] level = newLevelManager.loadDailySudoku();
-            QQWing difficultyCheck = new QQWing(GameType.Default_9x9, GameDifficulty.Unspecified);
-
-            difficultyCheck.setRecordHistory(true);
-            difficultyCheck.setPuzzle(level);
-            difficultyCheck.solve();
-
-            dailyDifficulty = difficultyCheck.getDifficulty();
+            dailyDifficulty = HumanDifficultyRater.rate(GameType.Default_9x9, level).getLevel();
 
             //save the index of the daily difficulty (in the valid difficulty list) and the day it was calculated for
             SharedPreferences.Editor editor = settings.edit();
             editor.putInt("lastCalculated", dailyId);
-            editor.putInt("dailyDifficultyIndex", GameDifficulty.getValidDifficultyList().indexOf(dailyDifficulty));
+            editor.putInt("dailyDifficultyLevel", dailyDifficulty.getValue());
             editor.apply();
 
         } else {
             // if the daily sudoku has been calculated already, the difficulty can be read from the settings attribute
-            int index = settings.getInt("dailyDifficultyIndex", GameDifficulty.getValidDifficultyList()
-                    .indexOf(GameDifficulty.Unspecified));
-            dailyDifficulty = GameDifficulty.getValidDifficultyList().get(index);
+            int legacyIndex = settings.getInt("dailyDifficultyIndex", 1);
+            int fallback = Math.max(3, Math.min(9, legacyIndex * 2 + 3));
+            int savedLevel = settings.getInt("dailyDifficultyLevel", fallback);
+            dailyDifficulty = DifficultyLevel.of(Math.max(DifficultyLevel.MIN_VALUE,
+                    Math.min(DifficultyLevel.MAX_VALUE, savedLevel)));
         }
 
         TextView diffTextView = findViewById(R.id.first_diff_text);
 
-        diffTextView.setText(dailyDifficulty.getStringResID());
-        difficultyBar.setNumStars(GameDifficulty.getValidDifficultyList().size());
-        difficultyBar.setMax(GameDifficulty.getValidDifficultyList().size());
-        difficultyBar.setRating(GameDifficulty.getValidDifficultyList().indexOf(dailyDifficulty)+1);
+        diffTextView.setText(new DifficultyPreferences(settings).format(this, dailyDifficulty));
+        difficultyBar.setVisibility(View.GONE);
     }
 
     public void onClick(View view) {
@@ -251,10 +246,10 @@ public class DailySudokuActivity extends AppCompatActivity {
             image.setImageResource(R.drawable.icon_default_9x9);
 
             gameType.setText(sudoku.getGameType().getStringResID());
-            difficulty.setText(sudoku.getDifficulty().getStringResID());
-            difficultyBar.setNumStars(GameDifficulty.getValidDifficultyList().size());
-            difficultyBar.setMax(GameDifficulty.getValidDifficultyList().size());
-            difficultyBar.setRating(GameDifficulty.getValidDifficultyList().indexOf(sudoku.getDifficulty())+1);
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            difficulty.setText(new DifficultyPreferences(preferences)
+                    .format(context, sudoku.getDifficulty()));
+            difficultyBar.setVisibility(View.GONE);
             customImage.setVisibility(View.INVISIBLE);
 
 

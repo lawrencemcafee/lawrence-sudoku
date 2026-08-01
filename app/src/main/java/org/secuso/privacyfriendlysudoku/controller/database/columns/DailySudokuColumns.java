@@ -36,7 +36,7 @@ public class DailySudokuColumns extends LevelColumns {
     public static final String TIME_NEEDED = "ds_time_needed";
     public static final String[] PROJECTION = {
             _ID,
-            DIFFICULTY,
+            DIFFICULTY_LEVEL,
             GAMETYPE,
             PUZZLE,
             HINTS_USED,
@@ -51,9 +51,10 @@ public class DailySudokuColumns extends LevelColumns {
     public static String SQL_CREATE_ENTRIES =
             "CREATE TABLE " + TABLE_NAME + " (" +
                     _ID         + INTEGER_TYPE + " PRIMARY KEY" + COMMA_SEP +
-                    DIFFICULTY        + TEXT_TYPE + COMMA_SEP +
-                    GAMETYPE  + TEXT_TYPE + COMMA_SEP +
-                    PUZZLE     + TEXT_TYPE + COMMA_SEP +
+                    DIFFICULTY_LEVEL  + INTEGER_TYPE + " NOT NULL CHECK (" +
+                    DIFFICULTY_LEVEL + " BETWEEN 1 AND 10)" + COMMA_SEP +
+                    GAMETYPE  + TEXT_TYPE + " NOT NULL" + COMMA_SEP +
+                    PUZZLE     + TEXT_TYPE + " NOT NULL" + COMMA_SEP +
                     HINTS_USED  + INTEGER_TYPE + COMMA_SEP +
                     TIME_NEEDED + TIME_TYPE + " )";
 
@@ -80,6 +81,8 @@ public class DailySudokuColumns extends LevelColumns {
      */
     public static ContentValues getValues(DailySudoku record) {
         ContentValues result = LevelColumns.getValues(record);
+        result.remove(PUZZLE_HASH);
+        result.remove(CREATED_AT);
         result.put(HINTS_USED, record.getHintsUsed());
         result.put(TIME_NEEDED, record.getTimeNeeded());
 

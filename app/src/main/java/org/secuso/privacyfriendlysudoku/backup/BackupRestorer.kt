@@ -105,11 +105,22 @@ class BackupRestorer : IBackupRestorer {
                 "pref_dark_mode_automatically_by_system" -> preferences.putBoolean(name, reader.nextBoolean())
                 "lastChosenDifficulty",
                 "pref_symbols",
-                "lastChosenGameType"-> preferences.putString(name, reader.nextString())
+                "lastChosenGameType",
+                "pref_difficulty_display",
+                "applied_difficulty_display",
+                "current_difficulty_category"-> preferences.putString(name, reader.nextString())
                 "dailyDifficultyIndex",
+                "dailyDifficultyLevel",
                 "lastCalculated",
-                "lastGameID" -> preferences.putInt(name, reader.nextInt())
-                else -> throw RuntimeException("Unknown preference $name")
+                "lastGameID",
+                "current_difficulty_level" -> preferences.putInt(name, reader.nextInt())
+                else -> {
+                    if (name.startsWith("last_served_")) {
+                        preferences.putInt(name, reader.nextInt())
+                    } else {
+                        throw RuntimeException("Unknown preference $name")
+                    }
+                }
             }
         }
         reader.endObject()

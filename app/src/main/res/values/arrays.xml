@@ -9,4 +9,14 @@
         <item>reply</item>
         <item>reply_all</item>
     </string-array>
+
+    <string-array name="difficulty_display_entries">
+        <item>@string/pref_difficulty_numbers</item>
+        <item>@string/pref_difficulty_names</item>
+    </string-array>
+
+    <string-array name="difficulty_display_values">
+        <item>NUMBERED</item>
+        <item>NAMED</item>
+    </string-array>
 </resources>

@@ -21,7 +21,8 @@ import android.database.sqlite.SQLiteDatabase;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.secuso.privacyfriendlysudoku.controller.database.columns.DailySudokuColumns.SQL_CREATE_ENTRIES;
+import static org.secuso.privacyfriendlysudoku.controller.database.columns.LevelColumns.DIFFICULTY_LEVEL;
+import static org.secuso.privacyfriendlysudoku.controller.database.columns.LevelColumns.LEGACY_DIFFICULTY;
 
 /**
  * @author Christopher Beckmann
@@ -32,21 +33,52 @@ public class MigrationUtil {
             new Migration(1,2) {
                 @Override
                 public void migrate(SQLiteDatabase db) {
-                    db.execSQL(SQL_CREATE_ENTRIES);
+                    db.execSQL("CREATE TABLE ds_levels ("
+                            + "_id INTEGER PRIMARY KEY,"
+                            + LEGACY_DIFFICULTY + " TEXT,"
+                            + "level_gametype TEXT,"
+                            + "level_puzzle TEXT,"
+                            + "ds_hints_used INTEGER,"
+                            + "ds_time_needed TIME (0))");
+                }
+            },
+            new Migration(2,3) {
+                @Override
+                public void migrate(SQLiteDatabase db) {
+                    // Generated levels are only a cache. Rebuild it instead of inventing exact
+                    // levels for rows that were graded by the old four-band classifier.
+                    db.execSQL(org.secuso.privacyfriendlysudoku.controller.database.columns.LevelColumns.SQL_DELETE_ENTRIES);
+                    db.execSQL(org.secuso.privacyfriendlysudoku.controller.database.columns.LevelColumns.SQL_CREATE_ENTRIES);
+
+                    // Daily history is user data, so preserve it and map each legacy band to the
+                    // lower exact level in the corresponding new category.
+                    db.execSQL("ALTER TABLE "
+                            + org.secuso.privacyfriendlysudoku.controller.database.columns.DailySudokuColumns.TABLE_NAME
+                            + " ADD COLUMN " + DIFFICULTY_LEVEL + " INTEGER");
+                    db.execSQL("UPDATE "
+                            + org.secuso.privacyfriendlysudoku.controller.database.columns.DailySudokuColumns.TABLE_NAME
+                            + " SET " + DIFFICULTY_LEVEL + " = CASE " + LEGACY_DIFFICULTY
+                            + " WHEN 'Easy' THEN 3 WHEN 'Moderate' THEN 5"
+                            + " WHEN 'Hard' THEN 7 WHEN 'Challenge' THEN 9 ELSE 5 END");
                 }
             }
     );
 
-    //TODO: for now just try to find the desired migration from the list.
-    // -> When more migrations are added, a chain could be found, e.g. 1->2->3
     public static boolean executeMigration(SQLiteDatabase db, int from, int to) {
-        for(Migration m : migrations) {
-            if(m.from == from && m.to == to) {
-                m.migrate(db);
-                return true;
+        int current = from;
+        while(current < to) {
+            Migration next = null;
+            for(Migration migration : migrations) {
+                if(migration.from == current && migration.to == current + 1) {
+                    next = migration;
+                    break;
+                }
             }
+            if(next == null) return false;
+            next.migrate(db);
+            current = next.to;
         }
-        return false;
+        return current == to;
     }
 
 }

@@ -5,19 +5,19 @@
  you can redistribute it and/or modify it under the terms of the
  GNU General Public License as published by the Free Software Foundation,
  either version 3 of the License, or any later version.
-
- Privacy Friendly Sudoku is distributed in the hope
- that it will be useful, but WITHOUT ANY WARRANTY; without even
- the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- See the GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with Privacy Friendly Sudoku. If not, see <http://www.gnu.org/licenses/>.
  */
 package org.secuso.privacyfriendlysudoku.controller;
 
 import android.content.Context;
 import android.util.Log;
+
+import org.secuso.privacyfriendlysudoku.controller.helper.HighscoreInfoContainer;
+import org.secuso.privacyfriendlysudoku.game.DifficultyCategory;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
+import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.GameType;
+import org.secuso.privacyfriendlysudoku.game.listener.IHintListener;
+import org.secuso.privacyfriendlysudoku.game.listener.ITimerListener;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -26,206 +26,125 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.secuso.privacyfriendlysudoku.controller.helper.HighscoreInfoContainer;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
-import org.secuso.privacyfriendlysudoku.game.GameType;
-import org.secuso.privacyfriendlysudoku.game.listener.IHintListener;
-import org.secuso.privacyfriendlysudoku.game.listener.ITimerListener;
-
-/**
- * Created by TMZ_LToP on 19.11.2015.
- */
+/** Versioned file statistics keyed by board type and exact difficulty. */
 public class SaveLoadStatistics implements ITimerListener, IHintListener {
+    private static final String FILE_EXTENSION = ".txt";
+    private static final String SAVE_PREFIX = "stat";
+    private static final String SAVES_DIR = "stats";
 
+    private final Context context;
+    private GameController gameController;
 
-    private static String FILE_EXTENSION = ".txt";
-    private static String SAVE_PREFIX = "stat";
-    private static String SAVES_DIR = "stats";
-    private GameController gc;
-    Context context;
-    private int numberOfArguents = 2;
-
-    //GameDifficulty, time, gamemode, #hints, AvTime, amountOf Games per GameDifficulty,
-    public SaveLoadStatistics(Context context){
+    public SaveLoadStatistics(Context context) {
         this.context = context;
     }
-    public void setGameController(GameController gc) {
-        this.gc = gc;
-        gc.registerTimerListener(this);
-        gc.registerHintListener(this);
+
+    public void setGameController(GameController controller) {
+        gameController = controller;
+        controller.registerTimerListener(this);
+        controller.registerHintListener(this);
     }
 
-    public HighscoreInfoContainer loadStats(GameType t, GameDifficulty gd){
-        File dir = context.getDir(SAVES_DIR, 0);
-        HighscoreInfoContainer infos;
-        byte[] bytes;
-        FileInputStream inputStream;
-        File file;
-        file = new File(dir,SAVE_PREFIX+t.name()+"_"+gd.name()+FILE_EXTENSION);
-        bytes = new byte[(int)file.length()];
-
-        try {
-            inputStream = new FileInputStream(file);
-            try {
-                inputStream.read(bytes);
-            }finally {
-                inputStream.close();
-            }
-        }  catch (IOException e) {
-            Log.e("Failed to read file","File could not be read");
-        }
-        infos = new HighscoreInfoContainer(t,gd);
-        try {
-            infos.setInfosFromFile(new String(bytes));
-        } catch (IllegalArgumentException e){
-            file.delete();
-        }
-        return infos;
-
+    public HighscoreInfoContainer loadStats(GameType type, DifficultyLevel level) {
+        HighscoreInfoContainer result = new HighscoreInfoContainer(type, level);
+        readInto(result, statsFile(type, level));
+        return result;
     }
 
-    public List<HighscoreInfoContainer> loadStats(GameType t) {
-        File dir = context.getDir(SAVES_DIR, 0);
-        List<GameDifficulty> difficulties = GameDifficulty.getValidDifficultyList();
+    private void readInto(HighscoreInfoContainer result, File file) {
+        if(!file.isFile()) return;
+        byte[] bytes = new byte[(int) file.length()];
+        try(FileInputStream input = new FileInputStream(file)) {
+            input.read(bytes);
+            result.setInfosFromFile(new String(bytes));
+        } catch(IOException | IllegalArgumentException failure) {
+            Log.e("Statistics", "Could not read " + file.getName(), failure);
+        }
+    }
+
+    public HighscoreInfoContainer loadStats(GameType type, DifficultyCategory category) {
+        HighscoreInfoContainer result = new HighscoreInfoContainer(type, category.getLowerLevel());
+        GameDifficulty legacy = legacyDifficulty(category);
+        if(legacy != null) {
+            readInto(result, new File(context.getDir(SAVES_DIR, 0),
+                    SAVE_PREFIX + type.name() + "_" + legacy.name() + FILE_EXTENSION));
+        }
+        result.merge(loadStats(type, category.getLowerLevel()));
+        result.merge(loadStats(type, category.getUpperLevel()));
+        return result;
+    }
+
+    public List<HighscoreInfoContainer> loadStats(GameType type) {
         List<HighscoreInfoContainer> result = new ArrayList<>();
-        HighscoreInfoContainer infos;
-        byte[] bytes;
-        FileInputStream inputStream;
-        File file;
-        for (GameDifficulty dif : difficulties){
-            file = new File(dir,SAVE_PREFIX+t.name()+"_"+dif.name()+FILE_EXTENSION);
-            bytes = new byte[(int)file.length()];
-            try {
-                inputStream = new FileInputStream(file);
-                try {
-                    inputStream.read(bytes);
-                }finally {
-                    inputStream.close();
-                }
-            }  catch (IOException e) {
-                Log.e("Failed to read file","File could not be read");
-            }
-            infos = new HighscoreInfoContainer(t,dif);
-            try {
-            infos.setInfosFromFile(new String(bytes));
-            } catch (IllegalArgumentException e){
-                file.delete();
-            }
-                result.add(infos);
-        }
-
-
-
+        for(DifficultyLevel level : DifficultyLevel.all()) result.add(loadStats(type, level));
         return result;
     }
 
     public static void resetStats(Context context) {
-
-
-        File dir = context.getDir(SAVES_DIR, 0);
-        File file;
-        for(GameType t: GameType.getValidGameTypes()){
-            for(GameDifficulty d : GameDifficulty.getValidDifficultyList()){
-                file = new File(dir,SAVE_PREFIX+t.name()+"_"+d.name()+FILE_EXTENSION);
-                file.delete();
+        File directory = context.getDir(SAVES_DIR, 0);
+        for(GameType type : GameType.getValidGameTypes()) {
+            for(DifficultyLevel level : DifficultyLevel.all()) {
+                new File(directory, fileName(type, level)).delete();
             }
-        }
-
-    }
-
-    public void incTime(GameDifficulty gd, GameType gameType) {
-        HighscoreInfoContainer infos = loadStats(gameType, gd);
-        infos.incTime();
-        saveContainer(infos,gd,gameType);
-
-
-    }
-    public void incHints(GameDifficulty gd, GameType gameType){
-        HighscoreInfoContainer infos = loadStats(gameType,gd);
-        infos.incHints();
-        saveContainer(infos,gd,gameType);
-    }
-
-    public void saveContainer (HighscoreInfoContainer infos, GameDifficulty gd, GameType t){
-
-        File dir = context.getDir(SAVES_DIR, 0);
-        File file = new File(dir, SAVE_PREFIX+t.name()+"_"+gd.name()+FILE_EXTENSION);
-
-
-        String stats = infos.getActualStats();
-        try {
-            FileOutputStream stream = new FileOutputStream(file);
-            try {
-                stream.write(stats.getBytes());
-            } finally {
-                stream.close();
+            // A reset also removes preserved legacy four-band records.
+            for(GameDifficulty legacy : GameDifficulty.getValidDifficultyList()) {
+                new File(directory, SAVE_PREFIX + type.name() + "_" + legacy.name()
+                        + FILE_EXTENSION).delete();
             }
-        } catch(IOException e) {
-            Log.e("File Manager", "Could not save game. IOException occured.");
         }
     }
 
     public void saveGameStats() {
-
-        if (gc == null) return;
-
-        HighscoreInfoContainer infoContainer = new HighscoreInfoContainer();
-
-        // Read existing stats
-        File dir = context.getDir(SAVES_DIR, 0);
-
-        File file = new File(dir, SAVE_PREFIX+gc.getGameType().name()+"_"+gc.getDifficulty().name()+FILE_EXTENSION);
-
-
-        if (file.isFile()){
-            byte[] bytes = new byte[(int)file.length()];
-            try {
-                FileInputStream stream = new FileInputStream(file);
-                try {
-                    stream.read(bytes);
-                } finally {
-                    stream.close();
-                }
-            }catch (IOException e) {
-            Log.e("Stats load to save game","error while load old game Stats");
-        }
-
-        String fileStats = new String(bytes);
-        if (!fileStats.isEmpty()) {
-            try {
-                infoContainer.setInfosFromFile(fileStats);
-
-            } catch (IllegalArgumentException e) {
-                Log.e("Parse Error","Illegal Atgumanet");
-            }
-        }
-
-        }
-
-        //add stats of current game stats or create init stats
-        infoContainer.add(gc);
-
-        String stats = infoContainer.getActualStats();
-        try {
-            FileOutputStream stream = new FileOutputStream(file);
-            try {
-                stream.write(stats.getBytes());
-            } finally {
-                stream.close();
-            }
-        } catch(IOException e) {
-            Log.e("File Manager", "Could not save game. IOException occured.");
-        }
+        if(gameController == null || gameController.gameIsCustom()) return;
+        HighscoreInfoContainer stats = loadStats(gameController.getGameType(),
+                gameController.getDifficulty());
+        stats.add(gameController);
+        save(stats, gameController.getGameType(), gameController.getDifficulty());
     }
 
     @Override
     public void onTick(int time) {
-        if (!gc.gameIsCustom()) incTime(gc.getDifficulty(), gc.getGameType());
-        //gc.getUsedHints();
+        if(gameController == null || gameController.gameIsCustom()) return;
+        HighscoreInfoContainer stats = loadStats(gameController.getGameType(),
+                gameController.getDifficulty());
+        stats.incTime();
+        save(stats, gameController.getGameType(), gameController.getDifficulty());
     }
 
     @Override
     public void onHintUsed() {
-        if (!gc.gameIsCustom()) incHints(gc.getDifficulty(),gc.getGameType());
+        if(gameController == null || gameController.gameIsCustom()) return;
+        HighscoreInfoContainer stats = loadStats(gameController.getGameType(),
+                gameController.getDifficulty());
+        stats.incHints();
+        save(stats, gameController.getGameType(), gameController.getDifficulty());
+    }
+
+    private void save(HighscoreInfoContainer stats, GameType type, DifficultyLevel level) {
+        File file = statsFile(type, level);
+        try(FileOutputStream output = new FileOutputStream(file)) {
+            output.write(stats.getActualStats().getBytes());
+        } catch(IOException failure) {
+            Log.e("Statistics", "Could not write " + file.getName(), failure);
+        }
+    }
+
+    private File statsFile(GameType type, DifficultyLevel level) {
+        return new File(context.getDir(SAVES_DIR, 0), fileName(type, level));
+    }
+
+    private static String fileName(GameType type, DifficultyLevel level) {
+        return SAVE_PREFIX + type.name() + "_L" + level.getValue() + FILE_EXTENSION;
+    }
+
+    private static GameDifficulty legacyDifficulty(DifficultyCategory category) {
+        switch(category) {
+            case Easy: return GameDifficulty.Easy;
+            case Moderate: return GameDifficulty.Moderate;
+            case Hard: return GameDifficulty.Hard;
+            case Challenge: return GameDifficulty.Challenge;
+            case Beginner:
+            default: return null;
+        }
     }
 }

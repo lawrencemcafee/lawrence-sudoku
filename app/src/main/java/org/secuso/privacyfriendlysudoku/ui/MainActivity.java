@@ -21,11 +21,14 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.DialogFragment;
 import android.content.DialogInterface;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.preference.PreferenceManager;
 import com.google.android.material.navigation.NavigationView;
 
@@ -47,15 +50,19 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
-import android.widget.RatingBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import org.secuso.privacyfriendlysudoku.controller.GameController;
 import org.secuso.privacyfriendlysudoku.controller.GameStateManager;
+import org.secuso.privacyfriendlysudoku.controller.GeneratorService;
 import org.secuso.privacyfriendlysudoku.controller.NewLevelManager;
 import org.secuso.privacyfriendlysudoku.controller.helper.GameInfoContainer;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyCategory;
+import org.secuso.privacyfriendlysudoku.game.DifficultyDisplayMode;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
+import org.secuso.privacyfriendlysudoku.game.DifficultyPreferences;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.ui.listener.IImportDialogFragmentListener;
 import org.secuso.privacyfriendlysudoku.R;
@@ -68,12 +75,45 @@ import static org.secuso.privacyfriendlysudoku.ui.TutorialActivity.ACTION_SHOW_A
 
 public class MainActivity extends BaseActivity implements NavigationView.OnNavigationItemSelectedListener, IImportDialogFragmentListener{
 
-    RatingBar difficultyBar;
+    private static final String STATE_GENERATION_REQUEST = "generationRequest";
+    private static final String STATE_GENERATION_GAMETYPE = "generationGameType";
+
+    SeekBar difficultyBar;
     TextView difficultyText;
     SharedPreferences settings;
+    DifficultyPreferences difficultyPreferences;
+    NewLevelManager newLevelManager;
+    CheckBox createGameBar;
     ImageView arrowLeft, arrowRight;
     DrawerLayout drawer;
     NavigationView mNavigationView;
+    private String pendingGenerationRequest;
+    private GameType pendingGenerationGameType;
+    private int[] pendingGenerationLevels;
+    private boolean generationReceiverRegistered;
+    private boolean gameTypeChangeFromUser;
+    private final BroadcastReceiver generationReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if(!GeneratorService.ACTION_GENERATION_RESULT.equals(intent.getAction())
+                    || pendingGenerationRequest == null
+                    || !pendingGenerationRequest.equals(intent.getStringExtra(
+                    GeneratorService.EXTRA_REQUEST_ID))) return;
+
+            if(intent.getBooleanExtra(GeneratorService.EXTRA_GENERATION_SUCCEEDED, false)) {
+                int value = intent.getIntExtra(GeneratorService.EXTRA_AVAILABLE_LEVEL, 0);
+                try {
+                    startGeneratedGame(pendingGenerationGameType, DifficultyLevel.of(value));
+                    return;
+                } catch(IllegalArgumentException ignored) {
+                    // Treat a malformed internal result as a failed generation request.
+                }
+            }
+            finishGenerationWait();
+            Toast.makeText(MainActivity.this, R.string.generation_failed,
+                    Toast.LENGTH_LONG).show();
+        }
+    };
 
     /**
      * The {@link ViewPager} that will host the section contents.
@@ -97,7 +137,22 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
 
         super.onCreate(savedInstanceState);
 
-        NewLevelManager newLevelManager = NewLevelManager.getInstance(getApplicationContext(), settings);
+        if(savedInstanceState != null) {
+            pendingGenerationRequest = savedInstanceState.getString(STATE_GENERATION_REQUEST);
+            pendingGenerationLevels = savedInstanceState.getIntArray(
+                    GeneratorService.EXTRA_ACCEPTABLE_LEVELS);
+            String savedGameType = savedInstanceState.getString(STATE_GENERATION_GAMETYPE);
+            if(savedGameType != null) {
+                try {
+                    pendingGenerationGameType = GameType.valueOf(savedGameType);
+                } catch(IllegalArgumentException ignored) {
+                    pendingGenerationRequest = null;
+                }
+            }
+        }
+
+        difficultyPreferences = new DifficultyPreferences(settings);
+        newLevelManager = NewLevelManager.getInstance(getApplicationContext(), settings);
 
         // check if we need to pre generate levels.
         newLevelManager.checkAndRestock();
@@ -145,104 +200,49 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
 
             @Override
             public void onPageSelected(int position) {
+                if(gameTypeChangeFromUser) cancelGenerationWait();
                 arrowLeft.setVisibility((position==0)?View.INVISIBLE:View.VISIBLE);
                 arrowRight.setVisibility((position==mSectionsPagerAdapter.getCount()-1)?View.INVISIBLE:View.VISIBLE);
-
-                GameType gameType = GameType.getValidGameTypes().get(mViewPager.getCurrentItem());
-                int index = difficultyBar.getProgress()-1;
-                GameDifficulty gameDifficulty = GameDifficulty.getValidDifficultyList().get(index < 0 ? 0 : index);
-                Button button = findViewById(R.id.playButton);
-                if (gameType == GameType.Default_16x16 && index <= 2) {
-                    button.setEnabled(false);
-                    button.setText(R.string.game_config_unsupported);
-                    button.setBackgroundResource(R.drawable.button_inactive);
-                } else {
-                    button.setEnabled(true);
-                    button.setText(R.string.new_game);
-                    button.setBackgroundResource(R.drawable.button_standalone);
-                }
-                ((TextView) findViewById(R.id.level_count))
-                        .setText(String.format(getString(R.string.levels_available), newLevelManager.getCountAvailableLevels(gameType, gameDifficulty)));
+                settings.edit().putString("lastChosenGameType",
+                        GameType.getValidGameTypes().get(position).name()).apply();
+                updateDifficultyUi();
             }
 
             @Override
             public void onPageScrollStateChanged(int state) {
+                if(state == ViewPager.SCROLL_STATE_DRAGGING) gameTypeChangeFromUser = true;
+                else if(state == ViewPager.SCROLL_STATE_IDLE) gameTypeChangeFromUser = false;
             }
         });
 
 
         // Set the difficulty Slider to whatever was chosen the last time
-        difficultyBar = (RatingBar)findViewById(R.id.difficultyBar);
+        difficultyBar = findViewById(R.id.difficultyBar);
         difficultyText = (TextView) findViewById(R.id.difficultyText);
-        final LinkedList<GameDifficulty> difficultyList = GameDifficulty.getValidDifficultyList();
-        difficultyBar.setNumStars(difficultyList.size());
-        difficultyBar.setMax(difficultyList.size());
-        CheckBox createGameBar = (CheckBox) findViewById(R.id.circleButton);
+        createGameBar = findViewById(R.id.circleButton);
         createGameBar.setButtonDrawable(R.drawable.create_game_src);
-        difficultyBar.setOnRatingBarChangeListener(new RatingBar.OnRatingBarChangeListener() {
+        difficultyBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
-            public void onRatingChanged(RatingBar ratingBar, float rating, boolean fromUser) {
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if(!fromUser) return;
+                cancelGenerationWait();
+                difficultyPreferences.setSelectionIndex(progress);
                 createGameBar.setChecked(false);
-                Button button = findViewById(R.id.playButton);
-                button.setText(R.string.new_game);
-
-                if (rating >= 1) {
-                    GameType gameType = GameType.getValidGameTypes().get(mViewPager.getCurrentItem());
-                    int index = difficultyBar.getProgress()-1;
-                    GameDifficulty gameDifficulty = GameDifficulty.getValidDifficultyList().get(index < 0 ? 0 : index);
-                    if (gameType == GameType.Default_16x16 && rating <= 2) {
-                        button.setEnabled(false);
-                        button.setText(R.string.game_config_unsupported);
-                        button.setBackgroundResource(R.drawable.button_inactive);
-                    } else {
-                        button.setEnabled(true);
-                        button.setText(R.string.new_game);
-                        button.setBackgroundResource(R.drawable.button_standalone);
-                    }
-
-                    ((TextView) findViewById(R.id.level_count))
-                            .setText(String.format(getString(R.string.levels_available), newLevelManager.getCountAvailableLevels(gameType, gameDifficulty)));
-
-                    difficultyText.setText(getString(difficultyList.get((int) ratingBar.getRating() - 1).getStringResID()));
-                } else {
-                    button.setEnabled(true);
-                    button.setBackgroundResource(R.drawable.button_standalone);
-                    difficultyText.setText(R.string.difficulty_custom);
-                    createGameBar.setChecked(true);
-                    ((Button)findViewById(R.id.playButton)).setText(R.string.create_game);
-                }
+                updateDifficultyUi();
             }
-        });
 
-        GameType gameType = GameType.getValidGameTypes().get(mViewPager.getCurrentItem());
-        GameDifficulty gameDifficulty = GameDifficulty.getValidDifficultyList().get(index < 0 ? 0 : index);
-        ((TextView) findViewById(R.id.level_count))
-                .setText(String.format(getString(R.string.levels_available), newLevelManager.getCountAvailableLevels(gameType, gameDifficulty)));
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
 
         createGameBar.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                difficultyBar.setRating(0);
-                ((Button)findViewById(R.id.playButton)).setText(R.string.create_game);
-                createGameBar.setChecked(true);
+                cancelGenerationWait();
+                updateDifficultyUi();
             }
         });
-
-        String retrievedDifficulty = settings.getString("lastChosenDifficulty", "Moderate");
-        GameDifficulty lastChosenDifficulty = GameDifficulty.valueOf(
-                retrievedDifficulty.equals("Custom")? GameDifficulty.Unspecified.toString() : retrievedDifficulty);
-
-        if (lastChosenDifficulty == GameDifficulty.Unspecified) {
-            difficultyBar.setRating(0);
-            createGameBar.setChecked(true);
-        } else {
-            difficultyBar.setRating(GameDifficulty.getValidDifficultyList().indexOf(lastChosenDifficulty) + 1);
-        }
-
-        if(Configuration.SCREENLAYOUT_SIZE_SMALL == (getResources().getConfiguration().screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK)) {
-            difficultyBar.setScaleX(0.75f);
-            difficultyBar.setScaleY(0.75f);
-        }
+        configureDifficultySelector();
 
         // on first create always check for loadable levels!
         SharedPreferences.Editor editor = settings.edit();
@@ -279,9 +279,11 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
 
         switch(view.getId()) {
             case R.id.arrow_left:
+                cancelGenerationWait();
                 mViewPager.arrowScroll(View.FOCUS_LEFT);
                 break;
             case R.id.arrow_right:
+                cancelGenerationWait();
                 mViewPager.arrowScroll(View.FOCUS_RIGHT);
                 break;
             case R.id.continueButton:
@@ -296,28 +298,33 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
 
                     SharedPreferences.Editor editor = settings.edit();
                     editor.putString("lastChosenGameType", gameType.name());
-                    editor.putString("lastChosenDifficulty", "Custom");
                     editor.apply();
-                    //i.putExtra("gameDifficulty", GameDifficulty.Easy);
                     break;
                 }
-                int index = difficultyBar.getProgress()-1;
-                GameDifficulty gameDifficulty = GameDifficulty.getValidDifficultyList().get(index < 0 ? 0 : index);
-
-                NewLevelManager newLevelManager = NewLevelManager.getInstance(getApplicationContext(), settings);
-                if(newLevelManager.isLevelLoadable(gameType, gameDifficulty)) {
-                    // save current setting for later
-                    SharedPreferences.Editor editor = settings.edit();
-                    editor.putString("lastChosenGameType", gameType.name());
-                    editor.putString("lastChosenDifficulty", gameDifficulty.name());
-                    editor.apply();
-
-                    // send everything to game activity
+                DifficultyLevel level = selectedExactLevel(gameType);
+                if(newLevelManager.isLevelLoadable(gameType, level)) {
+                    settings.edit().putString("lastChosenGameType", gameType.name()).apply();
                     i = new Intent(this, GameActivity.class);
                     i.putExtra("gameType", gameType.name());
-                    i.putExtra("gameDifficulty", gameDifficulty.name());
+                    i.putExtra("difficultyLevel", level.getValue());
                 } else {
-                    newLevelManager.checkAndRestock();
+                    pendingGenerationGameType = gameType;
+                    if(difficultyPreferences.getMode() == DifficultyDisplayMode.NAMED) {
+                        DifficultyCategory category = difficultyPreferences.getCurrentCategory();
+                        pendingGenerationLevels = new int[]{
+                                category.getLowerLevel().getValue(),
+                                category.getUpperLevel().getValue()
+                        };
+                        pendingGenerationRequest = newLevelManager.requestLevelForPlay(gameType,
+                                category);
+                    } else {
+                        pendingGenerationLevels = new int[]{level.getValue()};
+                        pendingGenerationRequest = newLevelManager.requestLevelForPlay(gameType,
+                                level);
+                    }
+                    // Generation can finish before enqueueWork returns on very fast devices.
+                    if(startPendingGameIfReady()) return;
+                    updateDifficultyUi();
                     Toast t = Toast.makeText(getApplicationContext(), R.string.generating, Toast.LENGTH_SHORT);
                     t.show();
                     return;
@@ -350,8 +357,133 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
         super.onResume();
 
         selectNavigationItem(R.id.nav_newgame_main);
-
+        difficultyPreferences = new DifficultyPreferences(settings);
+        configureDifficultySelector();
         refreshContinueButton();
+        startPendingGameIfReady();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        IntentFilter filter = new IntentFilter(GeneratorService.ACTION_GENERATION_RESULT);
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(generationReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(generationReceiver, filter);
+        }
+        generationReceiverRegistered = true;
+    }
+
+    @Override
+    protected void onStop() {
+        if(generationReceiverRegistered) {
+            unregisterReceiver(generationReceiver);
+            generationReceiverRegistered = false;
+        }
+        super.onStop();
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        if(pendingGenerationRequest != null && pendingGenerationGameType != null) {
+            state.putString(STATE_GENERATION_REQUEST, pendingGenerationRequest);
+            state.putString(STATE_GENERATION_GAMETYPE, pendingGenerationGameType.name());
+            state.putIntArray(GeneratorService.EXTRA_ACCEPTABLE_LEVELS,
+                    pendingGenerationLevels);
+        }
+    }
+
+    private void configureDifficultySelector() {
+        if(difficultyBar == null) return;
+        difficultyBar.setMax(difficultyPreferences.getSelectionCount() - 1);
+        difficultyBar.setProgress(difficultyPreferences.getSelectionIndex());
+        updateDifficultyUi();
+    }
+
+    private DifficultyLevel selectedExactLevel(GameType type) {
+        if(difficultyPreferences.getMode() == DifficultyDisplayMode.NUMBERED) {
+            return difficultyPreferences.getCurrentLevel();
+        }
+        return newLevelManager.chooseBalancedLevel(type,
+                difficultyPreferences.getCurrentCategory());
+    }
+
+    private void updateDifficultyUi() {
+        if(difficultyBar == null || mViewPager == null) return;
+        Button playButton = findViewById(R.id.playButton);
+        TextView countView = findViewById(R.id.level_count);
+        if(createGameBar != null && createGameBar.isChecked()) {
+            difficultyText.setText(R.string.difficulty_custom);
+            countView.setText("");
+            playButton.setText(R.string.create_game);
+        } else {
+            GameType type = GameType.getValidGameTypes().get(mViewPager.getCurrentItem());
+            difficultyText.setText(difficultyPreferences.formatCurrentSelection(this));
+            int count = difficultyPreferences.getMode() == DifficultyDisplayMode.NUMBERED
+                    ? newLevelManager.getCountAvailableLevels(type,
+                    difficultyPreferences.getCurrentLevel())
+                    : newLevelManager.getCountAvailableLevels(type,
+                    difficultyPreferences.getCurrentCategory());
+            countView.setText(getString(R.string.puzzles_ready, count));
+            playButton.setText(R.string.new_game);
+        }
+        difficultyBar.setContentDescription(difficultyText.getText());
+        if(pendingGenerationRequest == null) {
+            playButton.setEnabled(true);
+            playButton.setBackgroundResource(R.drawable.button_standalone);
+        } else {
+            playButton.setText(R.string.generating_button);
+            playButton.setEnabled(false);
+            playButton.setBackgroundResource(R.drawable.button_inactive);
+        }
+    }
+
+    private void startGeneratedGame(GameType gameType, DifficultyLevel level) {
+        finishGenerationWait();
+        settings.edit().putString("lastChosenGameType", gameType.name()).apply();
+        final Intent intent = new Intent(this, GameActivity.class);
+        intent.putExtra("gameType", gameType.name());
+        intent.putExtra("difficultyLevel", level.getValue());
+        View mainContent = findViewById(R.id.main_content);
+        if(mainContent != null) {
+            mainContent.animate().alpha(0).setDuration(MAIN_CONTENT_FADEOUT_DURATION);
+        }
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                startActivity(intent);
+            }
+        }, MAIN_CONTENT_FADEOUT_DURATION);
+    }
+
+    private void finishGenerationWait() {
+        pendingGenerationRequest = null;
+        pendingGenerationGameType = null;
+        pendingGenerationLevels = null;
+        updateDifficultyUi();
+    }
+
+    private boolean startPendingGameIfReady() {
+        if(pendingGenerationRequest == null || pendingGenerationGameType == null
+                || pendingGenerationLevels == null) return false;
+        for(int value : pendingGenerationLevels) {
+            try {
+                DifficultyLevel level = DifficultyLevel.of(value);
+                if(newLevelManager.isLevelLoadable(pendingGenerationGameType, level)) {
+                    startGeneratedGame(pendingGenerationGameType, level);
+                    return true;
+                }
+            } catch(IllegalArgumentException ignored) {
+                // Ignore corrupt restored state and let the matching service result fail it.
+            }
+        }
+        return false;
+    }
+
+    private void cancelGenerationWait() {
+        if(pendingGenerationRequest != null) finishGenerationWait();
     }
 
     private void refreshContinueButton() {

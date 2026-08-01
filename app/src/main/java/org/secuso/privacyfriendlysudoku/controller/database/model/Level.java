@@ -17,18 +17,18 @@
 package org.secuso.privacyfriendlysudoku.controller.database.model;
 
 import org.secuso.privacyfriendlysudoku.controller.Symbol;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 
 public class Level {
     protected int id = -1;
-    private GameDifficulty difficulty = GameDifficulty.Unspecified;
+    private DifficultyLevel difficulty = DifficultyLevel.DEFAULT;
     private GameType gameType = GameType.Unspecified;
     private int[] puzzle;
 
     public Level() {}
 
-    public Level(int id, GameDifficulty difficulty, GameType gameType, int[] puzzle) {
+    public Level(int id, DifficultyLevel difficulty, GameType gameType, int[] puzzle) {
         this.id = id;
         this.difficulty = difficulty;
         this.gameType = gameType;
@@ -43,11 +43,11 @@ public class Level {
         this.id = id;
     }
 
-    public GameDifficulty getDifficulty() {
+    public DifficultyLevel getDifficulty() {
         return difficulty;
     }
 
-    public void setDifficulty(GameDifficulty difficulty) {
+    public void setDifficulty(DifficultyLevel difficulty) {
         this.difficulty = difficulty;
     }
 

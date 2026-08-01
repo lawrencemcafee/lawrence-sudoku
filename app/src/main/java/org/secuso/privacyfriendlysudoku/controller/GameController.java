@@ -26,13 +26,13 @@ import org.secuso.privacyfriendlysudoku.controller.database.DatabaseHelper;
 import org.secuso.privacyfriendlysudoku.controller.database.model.DailySudoku;
 import org.secuso.privacyfriendlysudoku.controller.helper.GameInfoContainer;
 import org.secuso.privacyfriendlysudoku.controller.hints.GameHint;
+import org.secuso.privacyfriendlysudoku.controller.hints.HumanDifficultyRater;
 import org.secuso.privacyfriendlysudoku.controller.hints.HumanHintEngine;
-import org.secuso.privacyfriendlysudoku.controller.qqwing.QQWing;
 import org.secuso.privacyfriendlysudoku.game.CellConflict;
 import org.secuso.privacyfriendlysudoku.game.CellConflictList;
 import org.secuso.privacyfriendlysudoku.game.GameBoard;
 import org.secuso.privacyfriendlysudoku.game.GameCell;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.game.ICellAction;
 import org.secuso.privacyfriendlysudoku.game.listener.IGameSolvedListener;
@@ -83,7 +83,7 @@ public class GameController implements IModelChangedListener, Parcelable {
     private GameBoard gameBoard;
     private int[] solution = new int[0];
     private GameType gameType;
-    private GameDifficulty difficulty;
+    private DifficultyLevel difficulty = DifficultyLevel.DEFAULT;
     private CellConflictList errorList = new CellConflictList();
     private boolean gameIsCustom;
 
@@ -127,14 +127,13 @@ public class GameController implements IModelChangedListener, Parcelable {
 
     public boolean gameIsCustom() { return gameIsCustom; }
 
-    public void loadNewLevel(GameType type, GameDifficulty difficulty) {
+    public void loadNewLevel(GameType type, DifficultyLevel difficulty) {
         NewLevelManager newLevelManager = NewLevelManager.getInstance(context, settings);
-
-        int[] level = newLevelManager.loadLevel(type, difficulty);
-
-        loadLevel(new GameInfoContainer(0, difficulty, type, level, null, null));
-
-        newLevelManager.checkAndRestock();
+        org.secuso.privacyfriendlysudoku.controller.database.model.Level level =
+                newLevelManager.loadLevel(type, difficulty);
+        loadLevel(new GameInfoContainer(0, level.getDifficulty(), type,
+                level.getPuzzle(), null, null));
+        newLevelManager.requestRestock(type, difficulty);
     }
 
     public void loadNewDailySudokuLevel() {
@@ -143,13 +142,9 @@ public class GameController implements IModelChangedListener, Parcelable {
         // generate the daily sudoku
         int[] level = newLevelManager.loadDailySudoku();
 
-        // calculate the difficulty of the daily sudoku
-        QQWing difficultyCheck = new QQWing(GameType.Default_9x9, GameDifficulty.Unspecified);
-        difficultyCheck.setRecordHistory(true);
-        difficultyCheck.setPuzzle(level);
-        difficultyCheck.solve();
-
-        loadLevel(new GameInfoContainer(DAILY_SUDOKU_ID, difficultyCheck.getDifficulty(),
+        DifficultyLevel dailyDifficulty = HumanDifficultyRater
+                .rate(GameType.Default_9x9, level).getLevel();
+        loadLevel(new GameInfoContainer(DAILY_SUDOKU_ID, dailyDifficulty,
                 GameType.Default_9x9, level, null, null));
 
     }
@@ -543,7 +538,7 @@ public class GameController implements IModelChangedListener, Parcelable {
         return c.getNotes().clone();
     }
 
-    public GameDifficulty getDifficulty() {
+    public DifficultyLevel getDifficulty() {
         return difficulty;
     }
 
@@ -1002,7 +997,7 @@ public class GameController implements IModelChangedListener, Parcelable {
         notifiedOnSolvedListeners = in.readInt() == 1;
 
         gameType = in.readParcelable(GameType.class.getClassLoader());
-        difficulty = in.readParcelable(GameDifficulty.class.getClassLoader());
+        difficulty = in.readParcelable(DifficultyLevel.class.getClassLoader());
         gameBoard = in.readParcelable(GameBoard.class.getClassLoader());
         undoRedoManager = new UndoRedoManager(gameBoard);//*/in.readParcelable(UndoRedoManager.class.getClassLoader());
 

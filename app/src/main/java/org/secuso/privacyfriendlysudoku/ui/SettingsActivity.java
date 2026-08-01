@@ -33,6 +33,7 @@ import androidx.preference.PreferenceScreen;
 
 import org.secuso.privacyfriendlysudoku.ui.SettingsActivity;
 import org.secuso.privacyfriendlysudoku.R;
+import org.secuso.privacyfriendlysudoku.game.DifficultyPreferences;
 
 public class SettingsActivity extends AppCompatActivity {
 
@@ -72,6 +73,9 @@ public class SettingsActivity extends AppCompatActivity {
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+            if (DifficultyPreferences.PREF_DISPLAY_MODE.equals(key)) {
+                new DifficultyPreferences(sharedPreferences).applyModeChange();
+            }
             if (key.equals("pref_dark_mode_setting")|| key.equals("pref_dark_mode_automatically_by_system")||key.equals("pref_dark_mode_automatically_by_battery")) {
                 recheckNightModeProperties(sharedPreferences);
             }

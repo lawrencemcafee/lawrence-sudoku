@@ -5,149 +5,102 @@
  you can redistribute it and/or modify it under the terms of the
  GNU General Public License as published by the Free Software Foundation,
  either version 3 of the License, or any later version.
-
- Privacy Friendly Sudoku is distributed in the hope
- that it will be useful, but WITHOUT ANY WARRANTY; without even
- the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- See the GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with Privacy Friendly Sudoku. If not, see <http://www.gnu.org/licenses/>.
  */
 package org.secuso.privacyfriendlysudoku.controller.helper;
 
 import org.secuso.privacyfriendlysudoku.controller.GameController;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 
-/**
- * Created by Chris on 18.11.2015.
- */
-
+/** Aggregate statistics for one board type and one exact difficulty level. */
 public class HighscoreInfoContainer {
-
-    private GameType type = null;
-    private GameDifficulty difficulty = null;
+    private GameType type;
+    private DifficultyLevel difficulty;
     private int minTime = Integer.MAX_VALUE;
-    private int time=0;
-    private int numberOfHintsUsed =0;
-    private int numberOfGames=0;
-    private int numberOfGamesNoHints =0;
-    private int timeNoHints = 0;
+    private int time;
+    private int numberOfHintsUsed;
+    private int numberOfGames;
+    private int numberOfGamesNoHints;
+    private int timeNoHints;
 
-    private int amountOfSavedArguments = 8;
+    public HighscoreInfoContainer() {}
 
-    public HighscoreInfoContainer(){
-
-    }
-    public HighscoreInfoContainer(GameType t, GameDifficulty diff){
-        type =(type == null)?t:type;
-        difficulty = (difficulty == null) ? diff : difficulty;
+    public HighscoreInfoContainer(GameType type, DifficultyLevel difficulty) {
+        this.type = type;
+        this.difficulty = difficulty;
     }
 
-    public void add(GameController gc){
-        //add all wanted Game Stats
-        difficulty = (difficulty== null) ? gc.getDifficulty() : difficulty;
-        type = (type == null) ? gc.getGameType() : type;
-        //time += gc.getTime();
-        //numberOfHintsUsed += gc.getUsedHints();
+    public void add(GameController controller) {
+        difficulty = difficulty == null ? controller.getDifficulty() : difficulty;
+        type = type == null ? controller.getGameType() : type;
         numberOfGames++;
-        // min time is only minTime of games without hints used
-        minTime = (gc.getUsedHints() == 0 && gc.getTime()< minTime) ? gc.getTime() : minTime;
-        timeNoHints = (gc.getUsedHints() == 0) ? timeNoHints + gc.getTime() : timeNoHints;
-        numberOfGamesNoHints = (gc.getUsedHints() == 0) ? numberOfGamesNoHints + 1 : numberOfGamesNoHints;
-    }
-    public void incHints(){
-        numberOfHintsUsed++;
-    }
-    public void incTime() {
-        time++;
+        if(controller.getUsedHints() == 0) {
+            minTime = Math.min(minTime, controller.getTime());
+            timeNoHints += controller.getTime();
+            numberOfGamesNoHints++;
+        }
     }
 
-    public void setInfosFromFile(String s){
-        if(s.isEmpty()) return;
-        String [] strings = s.split("/");
-        if (strings.length != amountOfSavedArguments) {
-            throw new IllegalArgumentException("Argument Exception");
-        }
+    public void merge(HighscoreInfoContainer other) {
+        if(other == null) return;
+        time += other.time;
+        numberOfHintsUsed += other.numberOfHintsUsed;
+        numberOfGames += other.numberOfGames;
+        minTime = Math.min(minTime, other.minTime);
+        numberOfGamesNoHints += other.numberOfGamesNoHints;
+        timeNoHints += other.timeNoHints;
+    }
+
+    public void incHints() { numberOfHintsUsed++; }
+    public void incTime() { time++; }
+
+    public void setInfosFromFile(String serialized) {
+        if(serialized == null || serialized.isEmpty()) return;
+        String[] values = serialized.split("/");
+        if(values.length != 8) throw new IllegalArgumentException("Invalid statistics record.");
+        time = nonNegative(values[0]);
+        numberOfHintsUsed = nonNegative(values[1]);
+        numberOfGames = nonNegative(values[2]);
+        minTime = nonNegative(values[3]);
+        type = GameType.valueOf(values[4]);
+        difficulty = parseDifficulty(values[5]);
+        numberOfGamesNoHints = nonNegative(values[6]);
+        timeNoHints = nonNegative(values[7]);
+    }
+
+    public DifficultyLevel getDifficulty() { return difficulty; }
+    public GameType getGameType() { return type; }
+    public int getTime() { return time; }
+    public int getMinTime() { return minTime; }
+    public int getNumberOfHintsUsed() { return numberOfHintsUsed; }
+    public int getNumberOfGames() { return numberOfGames; }
+    public int getNumberOfGamesNoHints() { return numberOfGamesNoHints; }
+    public int getTimeNoHints() { return timeNoHints; }
+
+    public String getActualStats() {
+        return time + "/" + numberOfHintsUsed + "/" + numberOfGames + "/" + minTime
+                + "/" + type.name() + "/" + difficulty.getValue() + "/"
+                + numberOfGamesNoHints + "/" + timeNoHints;
+    }
+
+    private static int nonNegative(String value) {
+        int result = Integer.parseInt(value);
+        if(result < 0) throw new IllegalArgumentException("Statistics cannot be negative.");
+        return result;
+    }
+
+    private static DifficultyLevel parseDifficulty(String value) {
         try {
-            time = parseTime(strings[0]);
-            numberOfHintsUsed = parseHints(strings[1]);
-            numberOfGames = parseNumberOfGames(strings[2]);
-            minTime = parseTime(strings[3]);
-            type = parseGameType(strings[4]);
-            difficulty = parsDifficulty(strings[5]);
-            numberOfGamesNoHints=parseNumberOfGames(strings[6]);
-            timeNoHints = parseTime(strings[7]);
-
-        } catch (IllegalArgumentException e){
-            throw  new IllegalArgumentException("Could not set Infoprmation illegal Arguments");
+            return DifficultyLevel.parse(value);
+        } catch(IllegalArgumentException exactFailure) {
+            switch(GameDifficulty.valueOf(value)) {
+                case Easy: return DifficultyLevel.of(3);
+                case Moderate: return DifficultyLevel.of(5);
+                case Hard: return DifficultyLevel.of(7);
+                case Challenge: return DifficultyLevel.of(9);
+                default: return DifficultyLevel.DEFAULT;
+            }
         }
-    }
-
-    public GameDifficulty getDifficulty(){
-        return difficulty;
-    }
-    public GameType getGameType(){return type;}
-    public int getTime(){
-        return time;
-    }
-    public int getMinTime(){return minTime; }
-    public int getNumberOfHintsUsed(){return numberOfHintsUsed; }
-    public int getNumberOfGames(){  return numberOfGames;   }
-    public int getNumberOfGamesNoHints(){   return numberOfGamesNoHints; }
-    public int getTimeNoHints(){    return timeNoHints; }
-
-
-    private GameType parseGameType(String s){
-        return GameType.valueOf(s);
-    }
-    private GameDifficulty parsDifficulty(String s) {
-        return GameDifficulty.valueOf(s);
-    }
-
-    private int parseTime(String s){
-        int ret = Integer.valueOf(s);
-        if (ret<0){
-            throw new IllegalArgumentException("Parser Exception wrong Integer");
-        }
-        return ret;
-    }
-    private int parseHints(String s){
-        int ret = Integer.valueOf(s);
-        if (ret<0){
-            throw new IllegalArgumentException("Parser Exception wrong Integer");
-        }
-        return ret;
-
-    }
-    private int parseNumberOfGames(String s) {
-        int ret = Integer.valueOf(s);
-        if (ret<0){
-            throw new IllegalArgumentException("Parser Exception wrong Integer");
-        }
-        return ret;
-    }
-
-    public String getActualStats(){
-        StringBuilder sb = new StringBuilder();
-        sb.append(time);
-        sb.append("/");
-        sb.append(numberOfHintsUsed);
-        sb.append("/");
-        sb.append(numberOfGames);
-        sb.append("/");
-        sb.append(minTime);
-        sb.append("/");
-        sb.append(type.name());
-        sb.append("/");
-        sb.append(difficulty.name());
-        sb.append("/");
-        sb.append(numberOfGamesNoHints);
-        sb.append("/");
-        sb.append(timeNoHints);
-
-
-        return sb.toString();
     }
 }

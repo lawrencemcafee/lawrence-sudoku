@@ -20,7 +20,9 @@ import android.util.Log;
 
 import org.secuso.privacyfriendlysudoku.controller.GameController;
 import org.secuso.privacyfriendlysudoku.controller.Symbol;
+import org.secuso.privacyfriendlysudoku.controller.hints.HumanDifficultyRater;
 import org.secuso.privacyfriendlysudoku.game.GameCell;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.game.ICellAction;
@@ -36,18 +38,19 @@ public class GameInfoContainer {
     int ID;
     int timePlayed;
     Date lastTimePlayed;
-    GameDifficulty difficulty;
+    DifficultyLevel difficulty;
     int[] fixedValues;
     int[] setValues;
     boolean[][] setNotes;
     int hintsUsed;
     boolean isCustom;
+    boolean legacyDifficulty;
 
     public GameInfoContainer() {}
-    public GameInfoContainer(int ID, GameDifficulty difficulty, GameType gameType, int[] fixedValues, int[] setValues, boolean[][] setNotes) {
+    public GameInfoContainer(int ID, DifficultyLevel difficulty, GameType gameType, int[] fixedValues, int[] setValues, boolean[][] setNotes) {
         this(ID, difficulty, new Date(), 0, gameType, fixedValues, setValues, setNotes, 0);
     }
-    public GameInfoContainer(int ID, GameDifficulty difficulty, Date lastTimePlayed, int timePlayed, GameType gameType, int[] fixedValues, int[] setValues, boolean[][] setNotes, int hintsUsed) {
+    public GameInfoContainer(int ID, DifficultyLevel difficulty, Date lastTimePlayed, int timePlayed, GameType gameType, int[] fixedValues, int[] setValues, boolean[][] setNotes, int hintsUsed) {
         this.ID = ID;
         this.timePlayed = timePlayed;
         this.difficulty = difficulty;
@@ -58,6 +61,12 @@ public class GameInfoContainer {
         this.setNotes = setNotes;
         this.hintsUsed = hintsUsed;
         isCustom = false;
+    }
+
+    /** Compatibility constructor for legacy tests, imports, and old call sites. */
+    public GameInfoContainer(int ID, GameDifficulty difficulty, GameType gameType,
+                             int[] fixedValues, int[] setValues, boolean[][] setNotes) {
+        this(ID, fromLegacy(difficulty), gameType, fixedValues, setValues, setNotes);
     }
 
     public void setID(int ID) {
@@ -105,7 +114,25 @@ public class GameInfoContainer {
     }
 
     public void parseDifficulty(String s) {
-        difficulty = Enum.valueOf(GameDifficulty.class, s);
+        try {
+            difficulty = DifficultyLevel.parse(s);
+            legacyDifficulty = false;
+        } catch(IllegalArgumentException exactLevelFailure) {
+            difficulty = fromLegacy(Enum.valueOf(GameDifficulty.class, s));
+            legacyDifficulty = true;
+        }
+    }
+
+    public void regradeLegacyDifficulty() {
+        if(legacyDifficulty && fixedValues != null && gameType != null
+                && gameType != GameType.Unspecified) {
+            try {
+                difficulty = HumanDifficultyRater.rate(gameType, fixedValues).getLevel();
+            } catch(IllegalArgumentException ignored) {
+                // Keep the conservative lower-bound mapping for an old or damaged save.
+            }
+            legacyDifficulty = false;
+        }
     }
 
     public void parseFixedValues(String s){
@@ -182,7 +209,7 @@ public class GameInfoContainer {
         return setNotes;
     }
 
-    public GameDifficulty getDifficulty() {
+    public DifficultyLevel getDifficulty() {
         return difficulty;
     }
 
@@ -203,7 +230,7 @@ public class GameInfoContainer {
         sb.append("/");
         sb.append(today.getTime());
         sb.append("/");
-        sb.append(controller.getDifficulty().name());
+        sb.append(controller.getDifficulty().getValue());
         sb.append("/");
         sb.append(getFixedCells(controller));
         sb.append("/");
@@ -240,6 +267,18 @@ public class GameInfoContainer {
             }
         }, sb);
         return sb.toString();
+    }
+
+    private static DifficultyLevel fromLegacy(GameDifficulty difficulty) {
+        if(difficulty == null) return DifficultyLevel.DEFAULT;
+        switch(difficulty) {
+            case Easy: return DifficultyLevel.of(3);
+            case Moderate: return DifficultyLevel.of(5);
+            case Hard: return DifficultyLevel.of(7);
+            case Challenge: return DifficultyLevel.of(9);
+            case Unspecified:
+            default: return DifficultyLevel.DEFAULT;
+        }
     }
 
     private static String getSetCells(GameController controller) {

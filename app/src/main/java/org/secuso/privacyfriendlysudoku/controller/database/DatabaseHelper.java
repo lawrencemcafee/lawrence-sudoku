@@ -19,6 +19,7 @@ package org.secuso.privacyfriendlysudoku.controller.database;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
+import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
@@ -27,17 +28,16 @@ import org.secuso.privacyfriendlysudoku.controller.database.columns.LevelColumns
 import org.secuso.privacyfriendlysudoku.controller.database.migration.MigrationUtil;
 import org.secuso.privacyfriendlysudoku.controller.database.model.DailySudoku;
 import org.secuso.privacyfriendlysudoku.controller.database.model.Level;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
 
-    public static final int DATABASE_VERSION = 2;
+    public static final int DATABASE_VERSION = 3;
     public static final String DATABASE_NAME = "Database.db";
 
     public DatabaseHelper(Context context) {
@@ -51,19 +51,18 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // fallback to destructive migration if no migration could be executed
         if(!MigrationUtil.executeMigration(db, oldVersion, newVersion)) {
-            db.execSQL(LevelColumns.SQL_DELETE_ENTRIES);
-            db.execSQL(DailySudokuColumns.SQL_DELETE_ENTRIES);
-            onCreate(db);
+            throw new IllegalStateException("No safe database migration from "
+                    + oldVersion + " to " + newVersion + ".");
         }
     }
 
     public void onDowngrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        onUpgrade(db, oldVersion, newVersion);
+        throw new IllegalStateException("Database downgrades are not supported because they "
+                + "could destroy saved games or daily history.");
     }
 
-    public synchronized List<Level> getLevels(GameDifficulty difficulty, GameType gameType) {
+    public synchronized List<Level> getLevels(DifficultyLevel difficulty, GameType gameType) {
         if(difficulty == null || gameType == null) {
             throw new IllegalArgumentException("Arguments may not be null");
         }
@@ -72,8 +71,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         SQLiteDatabase database = getWritableDatabase();
 
-        String selection = LevelColumns.DIFFICULTY + " = ? AND " + LevelColumns.GAMETYPE + " = ?";
-        String[] selectionArgs = {difficulty.name(), gameType.name()};
+        String selection = LevelColumns.DIFFICULTY_LEVEL + " = ? AND " + LevelColumns.GAMETYPE + " = ?";
+        String[] selectionArgs = {String.valueOf(difficulty.getValue()), gameType.name()};
 
         // How you want the results sorted in the resulting Cursor
         Cursor c = database.query(
@@ -83,7 +82,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 selectionArgs,                            // The values for the WHERE clause
                 null,                                     // don't group the rows
                 null,                                     // don't filter by row groups
-                null                                    // The sort order
+                LevelColumns._ID + " ASC"              // The sort order
         );
 
         if (c != null) {
@@ -96,12 +95,38 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return levelList;
     }
 
-    public synchronized Level getLevel(GameDifficulty difficulty, GameType gameType) {
-        List<Level> levelList = getLevels(difficulty, gameType);
-        if(levelList.size() == 0) {
-            throw new IllegalArgumentException("There is no level");
+    public synchronized int countLevels(DifficultyLevel difficulty, GameType gameType) {
+        if(difficulty == null || gameType == null) {
+            throw new IllegalArgumentException("Arguments may not be null");
         }
-        return levelList.get(0);
+        String selection = LevelColumns.DIFFICULTY_LEVEL + " = ? AND "
+                + LevelColumns.GAMETYPE + " = ?";
+        String[] selectionArgs = {String.valueOf(difficulty.getValue()), gameType.name()};
+        return (int) DatabaseUtils.queryNumEntries(getReadableDatabase(),
+                LevelColumns.TABLE_NAME, selection, selectionArgs);
+    }
+
+    /** Atomically remove and return the oldest queued puzzle in an exact pool. */
+    public synchronized Level claimLevel(DifficultyLevel difficulty, GameType gameType) {
+        SQLiteDatabase database = getWritableDatabase();
+        database.beginTransaction();
+        Cursor cursor = null;
+        try {
+            String selection = LevelColumns.DIFFICULTY_LEVEL + " = ? AND "
+                    + LevelColumns.GAMETYPE + " = ?";
+            String[] args = {String.valueOf(difficulty.getValue()), gameType.name()};
+            cursor = database.query(LevelColumns.TABLE_NAME, LevelColumns.PROJECTION,
+                    selection, args, null, null, LevelColumns._ID + " ASC", "1");
+            if(!cursor.moveToFirst()) return null;
+            Level level = LevelColumns.getLevel(cursor);
+            database.delete(LevelColumns.TABLE_NAME, LevelColumns._ID + " = ?",
+                    new String[]{String.valueOf(level.getId())});
+            database.setTransactionSuccessful();
+            return level;
+        } finally {
+            if(cursor != null) cursor.close();
+            database.endTransaction();
+        }
     }
 
     /**
@@ -148,7 +173,58 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public synchronized long addLevel(Level level) {
         SQLiteDatabase database = getWritableDatabase();
-        return database.insert(LevelColumns.TABLE_NAME, null, LevelColumns.getValues(level));
+        return database.insertWithOnConflict(LevelColumns.TABLE_NAME, null,
+                LevelColumns.getValues(level), SQLiteDatabase.CONFLICT_IGNORE);
+    }
+
+    /** Insert only while the exact pool is below its hard cap. */
+    public synchronized long addLevelBounded(Level level, int hardCap) {
+        SQLiteDatabase database = getWritableDatabase();
+        database.beginTransaction();
+        try {
+            String selection = LevelColumns.DIFFICULTY_LEVEL + " = ? AND "
+                    + LevelColumns.GAMETYPE + " = ?";
+            String[] args = {String.valueOf(level.getDifficulty().getValue()),
+                    level.getGameType().name()};
+            long count = DatabaseUtils.queryNumEntries(database, LevelColumns.TABLE_NAME,
+                    selection, args);
+            if(count >= hardCap) return -1;
+            long result = database.insertWithOnConflict(LevelColumns.TABLE_NAME, null,
+                    LevelColumns.getValues(level), SQLiteDatabase.CONFLICT_IGNORE);
+            database.setTransactionSuccessful();
+            return result;
+        } finally {
+            database.endTransaction();
+        }
+    }
+
+    public synchronized void trimLevelPool(DifficultyLevel difficulty, GameType gameType,
+                                           int hardCap) {
+        SQLiteDatabase database = getWritableDatabase();
+        database.beginTransaction();
+        Cursor cursor = null;
+        try {
+            cursor = database.query(LevelColumns.TABLE_NAME,
+                    new String[]{LevelColumns._ID},
+                    LevelColumns.DIFFICULTY_LEVEL + " = ? AND " + LevelColumns.GAMETYPE + " = ?",
+                    new String[]{String.valueOf(difficulty.getValue()), gameType.name()},
+                    null, null, LevelColumns._ID + " ASC");
+            List<Integer> surplusIds = new ArrayList<>();
+            int index = 0;
+            while(cursor.moveToNext()) {
+                if(index++ >= hardCap) surplusIds.add(cursor.getInt(0));
+            }
+            cursor.close();
+            cursor = null;
+            for(int id : surplusIds) {
+                database.delete(LevelColumns.TABLE_NAME, LevelColumns._ID + " = ?",
+                        new String[]{String.valueOf(id)});
+            }
+            database.setTransactionSuccessful();
+        } finally {
+            if(cursor != null) cursor.close();
+            database.endTransaction();
+        }
     }
 
     /**
@@ -161,4 +237,3 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return database.insert(DailySudokuColumns.TABLE_NAME, null, DailySudokuColumns.getValues(ds));
     }
 }
-

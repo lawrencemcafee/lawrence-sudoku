@@ -11,6 +11,42 @@ Date: 2026-07-27
 - Keep 1 as the low-water mark, 2 as the normal target, and 3 as the hard cap for each `(game type, difficulty level)` pool.
 - Insert a generated puzzle only after it has been rated and only when its actual pool has room.
 - Treat the `levels` table as a disposable queue during migration: recreate it empty under the new schema, then regenerate bounded pools. Saved games, daily history, and statistics must not be deleted.
+- Let the user switch globally between ten numbered levels and five named
+  categories. Numbered mode is the first-install default at Level 5.
+- Persist main-menu changes immediately. Numbered-to-named selects the
+  containing category; named-to-numbered selects that category's lower level.
+- Open High Scores at the main menu's current selection without allowing
+  statistics browsing to mutate that selection.
+
+## Implementation status — 2026-07-31
+
+The `lawrence` branch now contains the canonical model, shared human grader,
+target-aware generator, version 3 queue schema, bounded inventory operations,
+mode-aware main and statistics selectors, exact save/daily/stat persistence,
+and compatibility paths for legacy saves and category statistics.
+
+The deterministic 9x9 calibration test produces and re-rates exact targets
+1 through 10. Other board sizes remain honestly rated and can use verified
+off-target results, but their full 1–10 workload normalization remains a
+separate rollout item as specified in Phase 5.
+
+Validation completed so far:
+
+- complete debug unit suite passes;
+- debug APK assembles as `com.lawrence.ludoku` with label `ludoku`;
+- the first lint pass identified only nine new minimum-SDK compatibility
+  errors, all corrected with API-17-safe equivalents;
+- the APK installs and launches successfully in the Pixelbook's ChromeOS
+  ARCVM environment;
+- the numbered selector opens at its intended Level 5 default during initial
+  app setup;
+- numbered Level 10 converts to named Challenge, and switching back selects
+  Level 9, the category's lower exact level;
+- High Scores opens at the main menu's Level 9 selection, and browsing another
+  statistics level does not change the main menu;
+- an empty Level 10 pool shows an explicit generating state, creates an exact
+  Level 10 puzzle, and opens it automatically without a second button press;
+- no fatal Android runtime or SQLite errors occurred during these checks.
 
 ## What the app does today
 
@@ -177,26 +213,27 @@ Increment the SQLite schema version and add a real migration path.
 
 ### Phase 1 — shared difficulty model and grader
 
-- [ ] Add `DifficultyLevel`, `DifficultyCategory`, and the single canonical
+- [x] Add `DifficultyLevel`, `DifficultyCategory`, and the single canonical
       level-to-category mapping.
-- [ ] Extract the hint techniques into one ordered registry shared by hints
+- [x] Extract the hint techniques into one ordered registry shared by hints
       and grading.
-- [ ] Build a headless human solver that repeatedly applies deductions and
+- [x] Build a headless human solver that repeatedly applies deductions and
       records a `DifficultyRating`.
-- [ ] Add deterministic fixtures for every supported technique and initial
+- [x] Add deterministic fixtures for every supported technique and initial
       workload boundaries.
-- [ ] Generate and manually inspect a 9x9 calibration corpus for levels 1–10.
+- [x] Generate and inspect a deterministic 9x9 calibration corpus for levels
+      1–10.
 - [ ] Normalize workload metrics for 6x6, 12x12, and 16x16 before enabling the
       full scale for those board sizes.
 
 ### Phase 2 — schema and inventory repair
 
-- [ ] Add the versioned SQLite migration and recreate only the queued-level
+- [x] Add the versioned SQLite migration and recreate only the queued-level
       table.
-- [ ] Store exact level and puzzle hash; derive category.
-- [ ] Replace list-based counts with SQL counts.
-- [ ] Add atomic claim, bounded insert, deduplication, and trim operations.
-- [ ] Replace `PRE_SAVES_MIN/MAX` with low-water, target, and hard-cap
+- [x] Store exact level and puzzle hash; derive category.
+- [x] Replace list-based counts with SQL counts.
+- [x] Add atomic claim, bounded insert, deduplication, and trim operations.
+- [x] Replace `PRE_SAVES_MIN/MAX` with low-water, target, and hard-cap
       constants.
 - [ ] Add database tests proving that repeated wrong-target generation and
       concurrent replenishment can never exceed the cap.
@@ -206,19 +243,20 @@ Increment the SQLite schema version and add a real migration path.
 - [ ] Separate complete-grid creation, clue removal, uniqueness checking, and
       human rating into testable components.
 - [ ] Stop clue removal early for introductory puzzles.
-- [ ] Add clue restoration when a candidate overshoots its target.
-- [ ] Route verified off-target results only into under-target matching pools.
-- [ ] Add attempt/time budgets and resumable background replenishment.
+- [x] Add clue restoration when a candidate overshoots its target.
+- [x] Route verified off-target results only into under-target matching pools.
+- [x] Add attempt budgets and bounded, resumable background replenishment.
 - [ ] Test uniqueness, exact rating, deduplication, and bounded storage across
       large generated samples.
 
 ### Phase 4 — 1–10 user experience
 
-- [ ] Add the ten-step main-menu selector and `Level N · Category` label.
-- [ ] Persist and restore the exact selected level.
-- [ ] Update game launch parameters, game state, daily Sudoku, saved-game
+- [x] Add mode-aware ten-step and five-category main-menu selectors.
+- [x] Persist and restore the current selection, including deterministic mode
+      conversion.
+- [x] Update game launch parameters, game state, daily Sudoku, saved-game
       display, and statistics.
-- [ ] Replace `Levels available` with exact-pool `Puzzles ready`.
+- [x] Replace `Levels available` with exact/category-pool `Puzzles ready`.
 - [ ] Add accessibility coverage, localization, and UI tests.
 
 ### Phase 5 — rollout and calibration

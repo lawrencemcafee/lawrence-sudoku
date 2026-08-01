@@ -5,288 +5,52 @@
  you can redistribute it and/or modify it under the terms of the
  GNU General Public License as published by the Free Software Foundation,
  either version 3 of the License, or any later version.
-
- Privacy Friendly Sudoku is distributed in the hope
- that it will be useful, but WITHOUT ANY WARRANTY; without even
- the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- See the GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with Privacy Friendly Sudoku. If not, see <http://www.gnu.org/licenses/>.
  */
 package org.secuso.privacyfriendlysudoku.controller;
 
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import androidx.annotation.Nullable;
-import androidx.core.app.JobIntentService;
-import androidx.core.app.NotificationCompat;
-import androidx.core.app.ServiceCompat;
-import androidx.core.content.ContextCompat;
-
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.util.Log;
 import android.util.Pair;
 
+import androidx.annotation.Nullable;
+import androidx.core.app.JobIntentService;
+import androidx.core.app.ServiceCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.app.NotificationCompat;
+
 import org.secuso.privacyfriendlysudoku.PFSudoku;
+import org.secuso.privacyfriendlysudoku.R;
+import org.secuso.privacyfriendlysudoku.controller.TargetedPuzzleGenerator.GeneratedPuzzle;
 import org.secuso.privacyfriendlysudoku.controller.database.DatabaseHelper;
 import org.secuso.privacyfriendlysudoku.controller.database.model.Level;
-import org.secuso.privacyfriendlysudoku.controller.qqwing.Action;
-import org.secuso.privacyfriendlysudoku.controller.qqwing.PrintStyle;
-import org.secuso.privacyfriendlysudoku.controller.qqwing.QQWing;
-import org.secuso.privacyfriendlysudoku.controller.qqwing.Symmetry;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.ui.MainActivity;
-import org.secuso.privacyfriendlysudoku.R;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Random;
 
-import static android.app.PendingIntent.FLAG_UPDATE_CURRENT;
-import static org.secuso.privacyfriendlysudoku.controller.NewLevelManager.PRE_SAVES_MIN;
-
-/**
- *
- * @author Christopher Beckmann
- */
-public class GeneratorService extends JobIntentService {
-
+/** Serial background scheduler for exact, bounded puzzle pools. */
+public final class GeneratorService extends JobIntentService {
     private static final String TAG = GeneratorService.class.getSimpleName();
-    public static final String ACTION_GENERATE = TAG + " ACTION_GENERATE";
-    public static final String ACTION_STOP = TAG + " ACTION_STOP";
-    public static final String EXTRA_GAMETYPE = TAG + " EXTRA_GAMETYPE";
-    public static final String EXTRA_DIFFICULTY = TAG + " EXTRA_DIFFICULTY";
+    private static final Object GENERATION_LOCK = new Object();
+    private static final int MAX_ATTEMPTS_PER_POOL = 4;
+    private static final int MAX_POOLS_PER_RUN = 2;
 
-    private final QQWingOptions opts = new QQWingOptions();
-
-    private final List<Pair<GameType, GameDifficulty>> generationList = new LinkedList<>();
-    private final DatabaseHelper dbHelper = new DatabaseHelper(this);
-    //private Handler mHandler = new Handler();
-
-
-    //public GeneratorService() {
-    //    super("Generator Service");
-    //}
-
-    //public GeneratorService(String name) { super(name); }
-
-
-    private void buildGenerationList() {
-        generationList.clear();
-
-        for(GameType validType : GameType.getValidGameTypes()) {
-            for(GameDifficulty validDifficulty : GameDifficulty.getValidDifficultyList()) {
-                // currently it's extremely unlikely to generate 16x16 easier than hard
-                if (validType.equals(GameType.Default_16x16) && (validDifficulty.equals(GameDifficulty.Easy) || validDifficulty.equals(GameDifficulty.Moderate))) {
-                    continue;
-                }
-                int levelCount = dbHelper.getLevels(validDifficulty, validType).size();
-                Log.d(TAG, "\tType: "+ validType.name() + " Difficulty: " + validDifficulty.name() + "\t: " + levelCount);
-                // add the missing levels to the list
-                for(int i = levelCount; i < PRE_SAVES_MIN; i++) {
-                    generationList.add(new Pair<>(validType, validDifficulty));
-                }
-            }
-        }
-
-        // PrintGenerationList
-        Log.d(TAG, "### Missing Levels: ###");
-        int i = 0;
-        for(Pair<GameType, GameDifficulty> dataPair : generationList) {
-            Log.d(TAG, "\t" + i++ + ":\tType: "+ dataPair.first.name() + " Difficulty: " + dataPair.second.name());
-        }
-    }
-
-    private void handleGenerationStop() {
-        stopForeground(true);
-        //mHandler.removeCallbacksAndMessages(null);
-    }
-
-    private void handleGenerationStart(Intent intent) {
-        GameType gameType;
-        GameDifficulty gameDifficulty;
-        try {
-            gameType = GameType.valueOf(intent.getExtras().getString(EXTRA_GAMETYPE, ""));
-            gameDifficulty = GameDifficulty.valueOf(intent.getExtras().getString(EXTRA_DIFFICULTY, ""));
-        } catch(IllegalArgumentException | NullPointerException e) {
-            gameType = null;
-            gameDifficulty = null;
-        }
-
-        if(gameType == null) {
-            generateLevels();
-        } else {
-            generateLevel(gameType, gameDifficulty);
-        }
-    }
-
-    private void generateLevels() {
-        // if we start this service multiple times while we are already generating...
-        // we ignore this call and just keep generating
-        buildGenerationList();
-        // generate from the list
-        if(generationList.size() > 0) {
-
-            // generate 1 level and wait for it to be done.
-            Pair<GameType, GameDifficulty> dataPair = generationList.remove(0);
-            GameType type = dataPair.first;
-            GameDifficulty diff = dataPair.second;
-
-            generateLevel(type, diff);
-        }
-    }
-
-    private void generateLevel(final GameType gameType, final GameDifficulty gameDifficulty) {
-        showNotification(gameType, gameDifficulty);
-
-        generated.clear();
-        opts.gameDifficulty = gameDifficulty;
-        opts.action = Action.GENERATE;
-        opts.needNow = true;
-        opts.printSolution = false;
-        opts.gameType = gameType;
-        if(gameDifficulty == GameDifficulty.Easy && gameType == GameType.Default_9x9) {
-            opts.symmetry = Symmetry.ROTATE90;
-        } else {
-            opts.symmetry = Symmetry.NONE;
-        }
-        if(gameType == GameType.Default_12x12 && gameDifficulty != GameDifficulty.Challenge) {
-            opts.symmetry = Symmetry.ROTATE90;
-        }
-
-        final AtomicInteger puzzleCount = new AtomicInteger(0);
-        final AtomicBoolean done = new AtomicBoolean(false);
-
-        Runnable generationRunnable = new Runnable() {
-                // Create a new puzzle board
-                // and set the options
-                private QQWing ss = createQQWing();
-
-                private QQWing createQQWing() {
-                    QQWing ss = new QQWing(opts.gameType, opts.gameDifficulty);
-                    ss.setRecordHistory(opts.printHistory || opts.printInstructions || opts.printStats || opts.gameDifficulty != GameDifficulty.Unspecified);
-                    ss.setLogHistory(opts.logHistory);
-                    ss.setPrintStyle(opts.printStyle);
-                    return ss;
-                }
-
-                @Override
-                public void run() {
-                    //android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
-                    try {
-
-                        // Solve puzzle or generate puzzles
-                        // until end of input for solving, or
-                        // until we have generated the specified number.
-                        while (!done.get()) {
-
-                            // Record whether the puzzle was possible or
-                            // not,
-                            // so that we don't try to solve impossible
-                            // givens.
-                            boolean havePuzzle;
-                            boolean solveImpossible;
-
-                            if (opts.action == Action.GENERATE) {
-                                // Generate a puzzle
-                                havePuzzle = ss.generatePuzzleSymmetry(opts.symmetry);
-
-                            } else {
-                                // Read the next puzzle on STDIN
-                                int[] puzzle = new int[QQWing.BOARD_SIZE];
-                                if (getPuzzleToSolve(puzzle)) {
-                                    havePuzzle = ss.setPuzzle(puzzle);
-                                    if (havePuzzle) {
-                                        puzzleCount.getAndDecrement();
-                                    } else {
-                                        // Puzzle to solve is impossible.
-                                        solveImpossible = true;
-                                    }
-                                } else {
-                                    // Set loop to terminate when nothing is
-                                    // left on STDIN
-                                    havePuzzle = false;
-                                    done.set(true);
-                                }
-                                puzzle = null;
-                            }
-
-                            if(opts.gameDifficulty != GameDifficulty.Unspecified) {
-                                ss.solve();
-                            }
-
-                            if (havePuzzle) {
-                                // Bail out if it didn't meet the difficulty
-                                // standards for generation
-                                if (opts.action == Action.GENERATE) {
-
-                                    // save the level anyways but keep going if the desired level is not yet generated
-                                    Level level = new Level();
-                                    level.setGameType(opts.gameType);
-                                    level.setDifficulty(ss.getDifficulty());
-                                    level.setPuzzle(ss.getPuzzle());
-                                    dbHelper.addLevel(level);
-                                    Log.d(TAG, "Generated: " + level.getGameType().name() + ",\t"+level.getDifficulty().name());
-
-                                    if (opts.gameDifficulty != GameDifficulty.Unspecified && opts.gameDifficulty != ss.getDifficulty()) {
-                                        havePuzzle = false;
-                                        // check if other threads have finished the job
-                                        if (puzzleCount.get() >= opts.numberToGenerate)
-                                            done.set(true);
-                                    } else {
-                                        int numDone = puzzleCount.incrementAndGet();
-                                        if (numDone >= opts.numberToGenerate) done.set(true);
-                                        if (numDone > opts.numberToGenerate) havePuzzle = false;
-                                    }
-                                }
-                                if (havePuzzle) {
-                                    generated.add(ss.getPuzzle());
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.e("QQWing", "Exception Occured", e);
-                        return;
-                    }
-                    generationDone();
-                }
-            };
-
-        generationRunnable.run();
-    }
-
-    // this is called whenever a generation is done..
-    private void generationDone() {
-        // check if more can be generated
-        if(generationList.size() > 0) {
-            generateLevels();
-        } else {
-            // we are done and can close this service
-            handleGenerationStop();
-        }
-    }
-
-    private void showNotification(GameType gameType, GameDifficulty gameDifficulty) {
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, PFSudoku.CHANNEL_ID);
-        builder.setContentTitle(getString(R.string.app_name));
-        builder.setContentText(getString(R.string.generating));
-        builder.setSubText(getString(gameType.getStringResID()) + ", " + getString(gameDifficulty.getStringResID()));
-        builder.setContentIntent(PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-        builder.setColor(ContextCompat.getColor(this, R.color.colorAccent));
-        builder.setPriority(NotificationCompat.PRIORITY_HIGH);
-        builder.setWhen(0);
-        builder.setSmallIcon(R.drawable.splash_icon);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            ServiceCompat.startForeground(this, 50, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-        } else {
-            startForeground(50, builder.build());
-        }
-    }
+    public static final String ACTION_GENERATE = TAG + ".GENERATE";
+    public static final String ACTION_GENERATION_RESULT = TAG + ".GENERATION_RESULT";
+    public static final String ACTION_STOP = TAG + ".STOP";
+    public static final String EXTRA_GAMETYPE = TAG + ".GAMETYPE";
+    public static final String EXTRA_DIFFICULTY_LEVEL = TAG + ".DIFFICULTY_LEVEL";
+    public static final String EXTRA_ACCEPTABLE_LEVELS = TAG + ".ACCEPTABLE_LEVELS";
+    public static final String EXTRA_REQUEST_ID = TAG + ".REQUEST_ID";
+    public static final String EXTRA_GENERATION_SUCCEEDED = TAG + ".GENERATION_SUCCEEDED";
+    public static final String EXTRA_AVAILABLE_LEVEL = TAG + ".AVAILABLE_LEVEL";
 
     static void enqueueWork(Context context, Intent intent) {
         enqueueWork(context, GeneratorService.class, 1000, intent);
@@ -294,48 +58,153 @@ public class GeneratorService extends JobIntentService {
 
     @Override
     protected void onHandleWork(@Nullable Intent intent) {
-        if (intent != null) {
-
-            String action = intent.getAction();
-
-            if      (ACTION_GENERATE.equals(action))    handleGenerationStart(intent);
-            else if (ACTION_STOP.equals(action))        handleGenerationStop();
+        if(intent == null) return;
+        synchronized(GENERATION_LOCK) {
+            handleWorkSerially(intent);
         }
     }
 
-    private int[] level;
-    private LinkedList<int[]> generated = new LinkedList<>();
+    private void handleWorkSerially(Intent intent) {
+        if(ACTION_STOP.equals(intent.getAction())) {
+            stopForeground(true);
+            return;
+        }
+        if(!ACTION_GENERATE.equals(intent.getAction())) return;
 
-    private static class QQWingOptions {
-        // defaults for options
-        boolean needNow = false;
-        boolean printPuzzle = false;
-        boolean printSolution = false;
-        boolean printHistory = false;
-        boolean printInstructions = false;
-        boolean timer = false;
-        boolean countSolutions = false;
-        Action action = Action.NONE;
-        boolean logHistory = false;
-        PrintStyle printStyle = PrintStyle.READABLE;
-        int numberToGenerate = 1;
-        boolean printStats = false;
-        GameDifficulty gameDifficulty = GameDifficulty.Unspecified;
-        GameType gameType = GameType.Unspecified;
-        Symmetry symmetry = Symmetry.NONE;
-        int threads = Runtime.getRuntime().availableProcessors();
+        DatabaseHelper database = new DatabaseHelper(this);
+        try {
+            List<Pair<GameType, DifficultyLevel>> work = buildWork(database, intent);
+            Random random = new Random();
+            for(Pair<GameType, DifficultyLevel> item : work) {
+                if(Thread.currentThread().isInterrupted()) break;
+                generatePool(database, item.first, item.second, random);
+            }
+        } catch(RuntimeException failure) {
+            Log.e(TAG, "Puzzle generation request failed", failure);
+        } finally {
+            try {
+                sendGenerationResult(database, intent);
+            } catch(RuntimeException failure) {
+                Log.e(TAG, "Could not deliver puzzle generation result", failure);
+            } finally {
+                stopForeground(true);
+            }
+        }
     }
 
-    private boolean getPuzzleToSolve(int[] puzzle) {
-        if(level != null) {
-            if(puzzle.length == level.length) {
-                for(int i = 0; i < level.length; i++) {
-                    puzzle[i] = level[i];
+    private List<Pair<GameType, DifficultyLevel>> buildWork(DatabaseHelper database,
+                                                             Intent intent) {
+        List<Pair<GameType, DifficultyLevel>> work = new ArrayList<>();
+        String requestedType = intent.getStringExtra(EXTRA_GAMETYPE);
+        int[] acceptableLevels = intent.getIntArrayExtra(EXTRA_ACCEPTABLE_LEVELS);
+        if(requestedType != null && acceptableLevels != null) {
+            GameType gameType = GameType.valueOf(requestedType);
+            for(int value : acceptableLevels) {
+                if(work.size() >= MAX_POOLS_PER_RUN) break;
+                if(value >= DifficultyLevel.MIN_VALUE && value <= DifficultyLevel.MAX_VALUE) {
+                    addDeficit(work, database, gameType, DifficultyLevel.of(value));
                 }
             }
-            level = null;
-            return true;
+            // A user waiting to play should not be held up by unrelated pool work.
+            if(intent.hasExtra(EXTRA_REQUEST_ID)) return work;
         }
-        return false;
+        int requestedLevel = intent.getIntExtra(EXTRA_DIFFICULTY_LEVEL, 0);
+        if(requestedType != null && requestedLevel >= DifficultyLevel.MIN_VALUE
+                && requestedLevel <= DifficultyLevel.MAX_VALUE) {
+            addDeficit(work, database, GameType.valueOf(requestedType),
+                    DifficultyLevel.of(requestedLevel));
+        }
+        for(GameType type : GameType.getValidGameTypes()) {
+            for(DifficultyLevel level : DifficultyLevel.all()) {
+                if(work.size() >= MAX_POOLS_PER_RUN) return work;
+                if(database.countLevels(level, type) < NewLevelManager.LOW_WATER_MARK) {
+                    addDeficit(work, database, type, level);
+                }
+            }
+        }
+        return work;
+    }
+
+    private void sendGenerationResult(DatabaseHelper database, Intent request) {
+        String requestId = request.getStringExtra(EXTRA_REQUEST_ID);
+        String requestedType = request.getStringExtra(EXTRA_GAMETYPE);
+        int[] acceptableLevels = request.getIntArrayExtra(EXTRA_ACCEPTABLE_LEVELS);
+        if(requestId == null || requestedType == null || acceptableLevels == null) return;
+
+        int availableLevel = 0;
+        try {
+            GameType type = GameType.valueOf(requestedType);
+            for(int value : acceptableLevels) {
+                if(value >= DifficultyLevel.MIN_VALUE && value <= DifficultyLevel.MAX_VALUE
+                        && database.countLevels(DifficultyLevel.of(value), type) > 0) {
+                    availableLevel = value;
+                    break;
+                }
+            }
+        } catch(RuntimeException failure) {
+            Log.e(TAG, "Could not resolve a play-generation request", failure);
+        }
+
+        Intent result = new Intent(ACTION_GENERATION_RESULT);
+        result.setPackage(getPackageName());
+        result.putExtra(EXTRA_REQUEST_ID, requestId);
+        result.putExtra(EXTRA_GAMETYPE, requestedType);
+        result.putExtra(EXTRA_GENERATION_SUCCEEDED, availableLevel != 0);
+        result.putExtra(EXTRA_AVAILABLE_LEVEL, availableLevel);
+        sendBroadcast(result);
+    }
+
+    private void addDeficit(List<Pair<GameType, DifficultyLevel>> work,
+                            DatabaseHelper database, GameType type, DifficultyLevel level) {
+        Pair<GameType, DifficultyLevel> pair = new Pair<>(type, level);
+        if(database.countLevels(level, type) < NewLevelManager.TARGET_READY
+                && !work.contains(pair)) work.add(pair);
+    }
+
+    private void generatePool(DatabaseHelper database, GameType type,
+                              DifficultyLevel target, Random random) {
+        database.trimLevelPool(target, type, NewLevelManager.HARD_CAP);
+        int attempts = 0;
+        while(database.countLevels(target, type) < NewLevelManager.TARGET_READY
+                && attempts++ < MAX_ATTEMPTS_PER_POOL
+                && !Thread.currentThread().isInterrupted()) {
+            showNotification(type, target);
+            try {
+                GeneratedPuzzle generated = TargetedPuzzleGenerator.generate(type, target, random);
+                DifficultyLevel actual = generated.getRating().getLevel();
+                if(database.countLevels(actual, type) < NewLevelManager.TARGET_READY) {
+                    Level level = new Level();
+                    level.setGameType(type);
+                    level.setDifficulty(actual);
+                    level.setPuzzle(generated.getPuzzle());
+                    long id = database.addLevelBounded(level, NewLevelManager.HARD_CAP);
+                    Log.d(TAG, "Generated " + type.name() + " level " + actual
+                            + " for requested level " + target + " (row " + id + ")");
+                }
+            } catch(RuntimeException failure) {
+                Log.e(TAG, "Could not generate " + type.name() + " level " + target, failure);
+            }
+        }
+    }
+
+    private void showNotification(GameType type, DifficultyLevel level) {
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, PFSudoku.CHANNEL_ID)
+                .setContentTitle(getString(R.string.app_name))
+                .setContentText(getString(R.string.generating))
+                .setSubText(getString(type.getStringResID()) + ", "
+                        + getString(R.string.difficulty_level_format, level.getValue()))
+                .setContentIntent(PendingIntent.getActivity(this, 0,
+                        new Intent(this, MainActivity.class),
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
+                .setColor(ContextCompat.getColor(this, R.color.colorAccent))
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setWhen(0)
+                .setSmallIcon(R.drawable.splash_icon);
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceCompat.startForeground(this, 50, builder.build(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else {
+            startForeground(50, builder.build());
+        }
     }
 }

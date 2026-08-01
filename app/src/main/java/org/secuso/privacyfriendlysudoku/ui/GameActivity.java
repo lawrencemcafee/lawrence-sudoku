@@ -59,8 +59,11 @@ import org.secuso.privacyfriendlysudoku.controller.GameStateManager;
 import org.secuso.privacyfriendlysudoku.controller.SaveLoadStatistics;
 import org.secuso.privacyfriendlysudoku.controller.Symbol;
 import org.secuso.privacyfriendlysudoku.controller.helper.GameInfoContainer;
+import org.secuso.privacyfriendlysudoku.controller.hints.HumanDifficultyRater;
 import org.secuso.privacyfriendlysudoku.controller.qqwing.QQWing;
 import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
+import org.secuso.privacyfriendlysudoku.game.DifficultyPreferences;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.game.listener.IGameSolvedListener;
 import org.secuso.privacyfriendlysudoku.game.listener.ITimerListener;
@@ -155,7 +158,7 @@ public class GameActivity extends BaseActivity implements NavigationView.OnNavig
         super.onCreate(savedInstanceState);
 
         GameType gameType = GameType.Unspecified;
-        GameDifficulty gameDifficulty = GameDifficulty.Unspecified;
+        DifficultyLevel gameDifficulty = DifficultyLevel.DEFAULT;
         int loadLevelID = 0;
         boolean loadLevel = false;
 
@@ -211,15 +214,13 @@ public class GameActivity extends BaseActivity implements NavigationView.OnNavig
                     container.parseFixedValues(input);
                     difficultyCheck = new QQWing(container.getGameType(), GameDifficulty.Unspecified);
 
-                    // calculate difficulty of the imported sudoku
-                    difficultyCheck.setRecordHistory(true);
-                    difficultyCheck.setPuzzle(container.getFixedValues());
-                    difficultyCheck.solve();
-
-                    container.parseDifficulty(difficultyCheck.getDifficulty().toString());
-
                     // A sudoku is that does not have a unique solution is deemed 'unplayable' and may not be started
+                    difficultyCheck.setPuzzle(container.getFixedValues());
                     startGame = difficultyCheck.hasUniqueSolution();
+                    if(startGame) {
+                        container.parseDifficulty(HumanDifficultyRater.rate(container.getGameType(),
+                                container.getFixedValues()).getLevel().toString());
+                    }
 
 
                 } catch (IllegalArgumentException e) {
@@ -256,7 +257,8 @@ public class GameActivity extends BaseActivity implements NavigationView.OnNavig
                 boolean isDailySudoku = false;
                 if (extras != null) {
                     gameType = GameType.valueOf(extras.getString("gameType", GameType.Default_9x9.name()));
-                    gameDifficulty = GameDifficulty.valueOf(extras.getString("gameDifficulty", GameDifficulty.Moderate.name()));
+                    gameDifficulty = DifficultyLevel.of(extras.getInt("difficultyLevel",
+                            DifficultyLevel.DEFAULT.getValue()));
                     isDailySudoku = extras.getBoolean("isDailySudoku", false);
                     loadLevel = extras.getBoolean("loadLevel", false);
                     if (loadLevel) {
@@ -361,14 +363,11 @@ public class GameActivity extends BaseActivity implements NavigationView.OnNavig
         viewName.setText(getString(gameController.getGameType().getStringResID()));
 
         //set Rating bar
-        List<GameDifficulty> difficutyList = GameDifficulty.getValidDifficultyList();
-        int numberOfStarts = difficutyList.size();
         ratingBar = (RatingBar) findViewById(R.id.gameModeStar);
-        ratingBar.setMax(numberOfStarts);
-        ratingBar.setNumStars(numberOfStarts);
-        ratingBar.setRating(difficutyList.indexOf(gameController.getDifficulty()) + 1);
+        ratingBar.setVisibility(View.GONE);
         TextView diffText = ((TextView)findViewById(R.id.difficultyText));
-        diffText.setText(getString(gameController.getDifficulty().getStringResID()));
+        diffText.setText(gameController.gameIsCustom() ? getString(R.string.difficulty_custom)
+                : new DifficultyPreferences(sharedPref).format(this, gameController.getDifficulty()));
 
 
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
@@ -423,6 +422,13 @@ public class GameActivity extends BaseActivity implements NavigationView.OnNavig
         }
 
         SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
+        TextView difficultyView = findViewById(R.id.difficultyText);
+        if(difficultyView != null && gameController != null) {
+            difficultyView.setText(gameController.gameIsCustom()
+                    ? getString(R.string.difficulty_custom)
+                    : new DifficultyPreferences(sharedPref)
+                    .format(this, gameController.getDifficulty()));
+        }
         gameController.initTimer();
 
         if(!gameSolved && startGame) {

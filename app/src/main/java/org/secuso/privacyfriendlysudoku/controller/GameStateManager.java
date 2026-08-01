@@ -101,6 +101,7 @@ public class GameStateManager {
                     gic.parseDate(values[i++]);
                     gic.parseDifficulty(values[i++]);
                     gic.parseFixedValues(values[i++]);
+                    gic.regradeLegacyDifficulty();
                     gic.parseSetValues(values[i++]);
                     gic.parseNotes(values[i++]);
                     gic.parseHintsUsed(values[i++]);

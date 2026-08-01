@@ -41,7 +41,7 @@ import android.widget.TextView;
 import org.secuso.privacyfriendlysudoku.controller.GameController;
 import org.secuso.privacyfriendlysudoku.controller.GameStateManager;
 import org.secuso.privacyfriendlysudoku.controller.helper.GameInfoContainer;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyPreferences;
 import org.secuso.privacyfriendlysudoku.ui.listener.IDeleteDialogFragmentListener;
 import org.secuso.privacyfriendlysudoku.R;
 
@@ -243,10 +243,9 @@ public class LoadGameActivity extends BaseActivity implements IDeleteDialogFragm
                     image.setImageResource(R.drawable.icon_default_9x9);
             }
             gameType.setText(gic.getGameType().getStringResID());
-            difficulty.setText(gic.getDifficulty().getStringResID());
-            difficultyBar.setNumStars(GameDifficulty.getValidDifficultyList().size());
-            difficultyBar.setMax(GameDifficulty.getValidDifficultyList().size());
-            difficultyBar.setRating(GameDifficulty.getValidDifficultyList().indexOf(gic.getDifficulty())+1);
+            difficulty.setText(new DifficultyPreferences(settings)
+                    .format(context, gic.getDifficulty()));
+            difficultyBar.setVisibility(View.GONE);
 
             customImage.setImageResource(gic.isCustom() ? R.drawable.ic_circle_blue_36dp : R.drawable.ic_circle_grey_36dp);
             customLabel.setVisibility(gic.isCustom() ? View.VISIBLE : View.GONE);

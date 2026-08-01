@@ -13,7 +13,9 @@ import org.secuso.privacyfriendlysudoku.game.GameCell;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Immutable-sized, cheaply cloneable candidate state used by every hint rule. */
 public final class CandidateState {
@@ -111,6 +113,51 @@ public final class CandidateState {
     void setValue(int index, int value) {
         values[index] = value;
         masks[index] = 0;
+    }
+
+    boolean isComplete() {
+        for(int value : values) {
+            if(value == 0) return false;
+        }
+        return true;
+    }
+
+    /** Apply a grader deduction directly to this normalized state. */
+    void apply(GameHint hint) {
+        switch(hint.getAction()) {
+            case PLACE_VALUE:
+                int index = topology.index(hint.getRow(), hint.getCol());
+                setValue(index, hint.getValue());
+                int bit = bit(hint.getValue());
+                for(BoardTopology.Cell peer : topology.peers(topology.cell(index))) {
+                    masks[peer.getIndex()] &= ~bit;
+                }
+                break;
+            case REMOVE_CANDIDATES:
+                for(GameHint.Candidate candidate : hint.getEliminations()) {
+                    int candidateIndex = topology.index(candidate.getRow(), candidate.getCol());
+                    masks[candidateIndex] &= ~bit(candidate.getValue());
+                }
+                break;
+            case CLEAR_VALUE:
+            default:
+                throw new IllegalArgumentException("A clean puzzle grader cannot clear values.");
+        }
+    }
+
+    /** Count distinct cells currently exposed by singles-level reasoning. */
+    int countBasicMoves() {
+        Set<Integer> cells = new HashSet<>();
+        for(int index = 0; index < values.length; index++) {
+            if(values[index] == 0 && candidateCount(index) == 1) cells.add(index);
+        }
+        for(BoardTopology.Unit unit : topology.getUnits()) {
+            for(int value = 1; value <= getSize(); value++) {
+                List<BoardTopology.Cell> candidates = candidateCells(unit, value);
+                if(candidates.size() == 1) cells.add(candidates.get(0).getIndex());
+            }
+        }
+        return cells.size();
     }
 
     public List<Integer> candidates(int index) {

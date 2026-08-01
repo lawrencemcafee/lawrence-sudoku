@@ -5,31 +5,10 @@
  you can redistribute it and/or modify it under the terms of the
  GNU General Public License as published by the Free Software Foundation,
  either version 3 of the License, or any later version.
-
- Privacy Friendly Sudoku is distributed in the hope
- that it will be useful, but WITHOUT ANY WARRANTY; without even
- the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- See the GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with Privacy Friendly Sudoku. If not, see <http://www.gnu.org/licenses/>.
  */
 package org.secuso.privacyfriendlysudoku.ui;
 
-import android.content.Context;
-import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
-import com.google.android.material.tabs.TabLayout;
-
-import androidx.core.content.ContextCompat;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentPagerAdapter;
-import androidx.fragment.app.FragmentStatePagerAdapter;
-import androidx.viewpager.widget.PagerAdapter;
-import androidx.viewpager.widget.ViewPager;
-import androidx.appcompat.widget.Toolbar;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -37,275 +16,192 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.RatingBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
+import androidx.appcompat.widget.Toolbar;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentPagerAdapter;
+import androidx.viewpager.widget.ViewPager;
+
+import com.google.android.material.tabs.TabLayout;
+
+import org.secuso.privacyfriendlysudoku.R;
 import org.secuso.privacyfriendlysudoku.controller.SaveLoadStatistics;
 import org.secuso.privacyfriendlysudoku.controller.helper.HighscoreInfoContainer;
-import org.secuso.privacyfriendlysudoku.game.GameDifficulty;
+import org.secuso.privacyfriendlysudoku.game.DifficultyCategory;
+import org.secuso.privacyfriendlysudoku.game.DifficultyDisplayMode;
+import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
+import org.secuso.privacyfriendlysudoku.game.DifficultyPreferences;
 import org.secuso.privacyfriendlysudoku.game.GameType;
-import org.secuso.privacyfriendlysudoku.R;
 
-import java.util.List;
+import java.util.Locale;
 
+/** High scores for one browsable difficulty at a time. */
 public class StatsActivity extends BaseActivity {
-
-    /**
-     * The {@link PagerAdapter} that will provide
-     * fragments for each of the sections. We use a
-     * {@link FragmentPagerAdapter} derivative, which will keep every
-     * loaded fragment in memory. If this becomes too memory intensive, it
-     * may be best to switch to a
-     * {@link FragmentStatePagerAdapter}.
-     */
-    private SectionsPagerAdapter mSectionsPagerAdapter;
-
-    /**
-     * The {@link ViewPager} that will host the section contents.
-     */
-    private ViewPager mViewPager;
+    private SectionsPagerAdapter sectionsPagerAdapter;
+    private DifficultyPreferences difficultyPreferences;
+    private int selectedDifficultyIndex;
+    private TextView difficultyText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_stats);
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        getSupportActionBar().setTitle(R.string.menu_highscore);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
-        androidx.appcompat.app.ActionBar actionBar = getSupportActionBar();
-        actionBar.setTitle(R.string.menu_highscore);
-        actionBar.setDisplayHomeAsUpEnabled(true);
-        //actionBar.setBackgroundDrawable(new ColorDrawable(ContextCompat.getColor(this, R.color.colorPrimary)));
+        difficultyPreferences = new DifficultyPreferences(
+                android.preference.PreferenceManager.getDefaultSharedPreferences(this));
+        selectedDifficultyIndex = difficultyPreferences.getSelectionIndex();
 
-        // Create the adapter that will return a fragment for each of the three
-        // primary sections of the activity.
-        mSectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
+        sectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
+        ViewPager viewPager = findViewById(R.id.main_content);
+        viewPager.setAdapter(sectionsPagerAdapter);
+        TabLayout tabs = findViewById(R.id.tabs);
+        tabs.setupWithViewPager(viewPager);
 
-        // Set up the ViewPager with the sections adapter.
-        mViewPager = (ViewPager) findViewById(R.id.main_content);
-        mViewPager.setAdapter(mSectionsPagerAdapter);
+        difficultyText = findViewById(R.id.stats_difficulty_text);
+        SeekBar selector = findViewById(R.id.stats_difficulty_selector);
+        selector.setMax(difficultyPreferences.getSelectionCount() - 1);
+        selector.setProgress(selectedDifficultyIndex);
+        selector.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                selectedDifficultyIndex = progress;
+                updateDifficultyText();
+                if(sectionsPagerAdapter != null) sectionsPagerAdapter.refresh();
+            }
 
-        TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
-        tabLayout.setupWithViewPager(mViewPager);
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        updateDifficultyText();
     }
 
+    DifficultyLevel getSelectedLevel() {
+        return DifficultyLevel.of(selectedDifficultyIndex + 1);
+    }
+
+    DifficultyCategory getSelectedCategory() {
+        return DifficultyCategory.values()[selectedDifficultyIndex];
+    }
+
+    private void updateDifficultyText() {
+        if(difficultyPreferences.getMode() == DifficultyDisplayMode.NUMBERED) {
+            difficultyText.setText(getString(R.string.difficulty_level_format,
+                    getSelectedLevel().getValue()));
+        } else {
+            difficultyText.setText(getSelectedCategory().getStringResId());
+        }
+        SeekBar selector = findViewById(R.id.stats_difficulty_selector);
+        if(selector != null) selector.setContentDescription(difficultyText.getText());
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_stats, menu);
-        //getMenuInflater().inflate(R.menu.menu_stats, menu);
         return true;
-        //return false;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-
-        //noinspection SimplifiableIfStatement
-        switch(item.getItemId()) {
-            case R.id.action_reset:
-                SaveLoadStatistics.resetStats(this);
-                mSectionsPagerAdapter.refresh(this);
-                return true;
-            case android.R.id.home:
-                finish();
-                return true;
+        if(item.getItemId() == R.id.action_reset) {
+            SaveLoadStatistics.resetStats(this);
+            sectionsPagerAdapter.refresh();
+            return true;
         }
-
+        if(item.getItemId() == android.R.id.home) {
+            finish();
+            return true;
+        }
         return super.onOptionsItemSelected(item);
     }
 
-
-
-    /**
-     * A {@link FragmentPagerAdapter} that returns a fragment corresponding to
-     * one of the sections/tabs/pages.
-     */
     public class SectionsPagerAdapter extends FragmentPagerAdapter {
+        private final FragmentManager fragmentManager;
 
-
-        private FragmentManager fm;
-
-        public SectionsPagerAdapter(FragmentManager fm) {
-            super(fm);
-            this.fm = fm;
+        SectionsPagerAdapter(FragmentManager fragmentManager) {
+            super(fragmentManager);
+            this.fragmentManager = fragmentManager;
         }
 
-        @Override
-        public Fragment getItem(int position) {
-            // getItem is called to instantiate the fragment for the given page.
-            // Return a PlaceholderFragment (defined as a static inner class below).
-
-            return PlaceholderFragment.newInstance(position);
-        }
-
-        @Override
-        public int getCount() {
-            return GameType.getValidGameTypes().size();
-        }
-
-        @Override
-        public CharSequence getPageTitle(int position) {
+        @Override public Fragment getItem(int position) { return ScoreFragment.newInstance(position); }
+        @Override public int getCount() { return GameType.getValidGameTypes().size(); }
+        @Override public CharSequence getPageTitle(int position) {
             return getString(GameType.getValidGameTypes().get(position).getStringResID());
         }
-        public void refresh(Context context){
-            for (Fragment f : fm.getFragments()){
-                if(f instanceof PlaceholderFragment){
-                    ((PlaceholderFragment) f).refresh(context);
-                }
+
+        void refresh() {
+            for(Fragment fragment : fragmentManager.getFragments()) {
+                if(fragment instanceof ScoreFragment) ((ScoreFragment) fragment).refresh();
             }
         }
     }
 
-    /**
-     * A placeholder fragment containing a simple view.
-     */
-    public static class PlaceholderFragment extends Fragment {
-        /**
-         * The fragment argument representing the section number for this
-         * fragment.
-         */
-        private static final String ARG_SECTION_NUMBER = "section_number";
-        private View rootView;
-        private TextView difficultyView,averageTimeView,minTimeView;
-        private RatingBar difficultyBarView;
-        private String s;
-        private int t;
-        private int totalTime =0;
-        private int totalGames =0;
-        private int totalHints =0;
+    public static class ScoreFragment extends Fragment {
+        private static final String ARG_GAME_TYPE_INDEX = "game_type_index";
+        private View root;
 
-
-        /**
-         * Returns a new instance of this fragment for the given section
-         * number.
-         */
-        public static PlaceholderFragment newInstance(int sectionNumber) {
-            PlaceholderFragment fragment = new PlaceholderFragment();
-            Bundle args = new Bundle();
-            args.putInt(ARG_SECTION_NUMBER, sectionNumber);
-            fragment.setArguments(args);
+        static ScoreFragment newInstance(int index) {
+            ScoreFragment fragment = new ScoreFragment();
+            Bundle arguments = new Bundle();
+            arguments.putInt(ARG_GAME_TYPE_INDEX, index);
+            fragment.setArguments(arguments);
             return fragment;
         }
-
-        public void refresh(Context context){
-            resetGeneral();
-            SaveLoadStatistics s = new SaveLoadStatistics(context);
-            List<HighscoreInfoContainer> stats = s.loadStats(GameType.getValidGameTypes().get(getArguments().getInt(ARG_SECTION_NUMBER)));
-            int j =0;
-            for (HighscoreInfoContainer i : stats){
-                updateGeneralInfo(i.getTime(), i.getNumberOfGames(), i.getNumberOfHintsUsed());
-                setStats(i,j++);
-            }
-            setGeneralInfo();
-        }
-
-        private void resetGeneral(){
-            totalTime=0;
-            totalHints=0;
-            totalGames=0;
-        }
-
-        public PlaceholderFragment() {
-        }
-
-
-        private String formatTime(int totalTime){
-            if (totalTime==0) return "-";
-            int seconds = totalTime % 60;
-            int minutes = ((totalTime -seconds)/60)%60 ;
-            int hours = (totalTime - minutes - seconds)/(3600);
-            String h,m,s;
-            s = (seconds < 10)? "0"+String.valueOf(seconds):String.valueOf(seconds);
-            m = (minutes < 10)? "0"+String.valueOf(minutes):String.valueOf(minutes);
-            h = (hours < 10)? "0"+String.valueOf(hours):String.valueOf(hours);
-            return (h + ":" + m + ":" + s);
-
-        }
-        private void updateGeneralInfo(int time, int games, int hints){
-            totalHints +=hints;
-            totalGames +=games;
-            totalTime +=time;
-        }
-        private void setGeneralInfo(){
-            TextView generalInfoView;
-
-            generalInfoView = (TextView)rootView.findViewById(R.id.numb_of_hints);
-            generalInfoView.setText(String.valueOf(totalHints));
-            generalInfoView = (TextView)rootView.findViewById(R.id.numb_of_total_games);
-            generalInfoView.setText(String.valueOf(totalGames));
-            generalInfoView = (TextView)rootView.findViewById(R.id.numb_of_total_time);
-            generalInfoView.setText(formatTime(totalTime));
-
-        }
-
-        private void setStats(HighscoreInfoContainer infos, int pos){
-
-            switch (pos) {
-                case 0 :
-                    difficultyBarView = (RatingBar) rootView.findViewById(R.id.first_diff_bar);
-                    difficultyView = (TextView) rootView.findViewById(R.id.first_diff_text);
-                    averageTimeView = (TextView) rootView.findViewById(R.id.first_ava_time);
-                    minTimeView = (TextView) rootView.findViewById(R.id.first_min_time);
-                    break;
-                case 1:
-                    difficultyBarView = (RatingBar) rootView.findViewById(R.id.second_diff_bar);
-                    difficultyView = (TextView) rootView.findViewById(R.id.second_diff_text);
-                    averageTimeView = (TextView) rootView.findViewById(R.id.second_ava_time);
-                    minTimeView = (TextView) rootView.findViewById(R.id.second_min_time);
-                    break;
-                case 2:
-                    difficultyBarView = (RatingBar) rootView.findViewById(R.id.third_diff_bar);
-                    difficultyView = (TextView) rootView.findViewById(R.id.third_diff_text);
-                    averageTimeView = (TextView) rootView.findViewById(R.id.third_ava_time);
-                    minTimeView = (TextView) rootView.findViewById(R.id.third_min_time);
-                    break;
-                case 3:
-                    difficultyBarView = (RatingBar) rootView.findViewById(R.id.fourth_diff_bar);
-                    difficultyView = (TextView) rootView.findViewById(R.id.fourth_diff_text);
-                    averageTimeView = (TextView) rootView.findViewById(R.id.fourth_ava_time);
-                    minTimeView = (TextView) rootView.findViewById(R.id.fourth_min_time);
-                    break;
-                default: return;
-            }
-            difficultyBarView.setMax(GameDifficulty.getValidDifficultyList().size());
-            difficultyBarView.setNumStars(GameDifficulty.getValidDifficultyList().size());
-            difficultyBarView.setRating(infos.getDifficulty().ordinal());
-            difficultyView.setText(rootView.getResources().getString(infos.getDifficulty().getStringResID()));
-            t= (infos.getTimeNoHints() == 0)?0:(infos.getTimeNoHints() / infos.getNumberOfGamesNoHints());
-            averageTimeView.setText(formatTime(t));
-            t = (infos.getMinTime()==Integer.MAX_VALUE)? 0:(infos.getMinTime());
-            minTimeView.setText(formatTime(t));
-        }
-
 
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
+            root = inflater.inflate(R.layout.fragment_stats, container, false);
+            refresh();
+            return root;
+        }
 
-            View rootView = inflater.inflate(R.layout.fragment_stats, container, false);
-            this.rootView = rootView;
-            resetGeneral();
+        void refresh() {
+            if(root == null || getActivity() == null) return;
+            StatsActivity activity = (StatsActivity) getActivity();
+            GameType type = GameType.getValidGameTypes().get(
+                    getArguments().getInt(ARG_GAME_TYPE_INDEX));
+            SaveLoadStatistics loader = new SaveLoadStatistics(activity);
+            HighscoreInfoContainer stats = activity.difficultyPreferences.getMode()
+                    == DifficultyDisplayMode.NUMBERED
+                    ? loader.loadStats(type, activity.getSelectedLevel())
+                    : loader.loadStats(type, activity.getSelectedCategory());
 
-            SaveLoadStatistics s = new SaveLoadStatistics(this.getContext());
-            List<HighscoreInfoContainer> stats = s.loadStats(GameType.getValidGameTypes().get(getArguments().getInt(ARG_SECTION_NUMBER)));
+            ((ImageView) root.findViewById(R.id.statistic_image)).setImageResource(type.getResIDImage());
+            ((TextView) root.findViewById(R.id.first_diff_text)).setText(
+                    activity.difficultyPreferences.getMode() == DifficultyDisplayMode.NUMBERED
+                            ? activity.getString(R.string.difficulty_level_format,
+                            activity.getSelectedLevel().getValue())
+                            : activity.getString(activity.getSelectedCategory().getStringResId()));
+            RatingBar legacyBar = root.findViewById(R.id.first_diff_bar);
+            legacyBar.setVisibility(View.GONE);
 
+            setText(R.id.numb_of_hints, stats.getNumberOfHintsUsed());
+            setText(R.id.numb_of_total_games, stats.getNumberOfGames());
+            ((TextView) root.findViewById(R.id.numb_of_total_time)).setText(formatTime(stats.getTime()));
+            int average = stats.getNumberOfGamesNoHints() == 0 ? 0
+                    : stats.getTimeNoHints() / stats.getNumberOfGamesNoHints();
+            ((TextView) root.findViewById(R.id.first_ava_time)).setText(formatTime(average));
+            int minimum = stats.getMinTime() == Integer.MAX_VALUE ? 0 : stats.getMinTime();
+            ((TextView) root.findViewById(R.id.first_min_time)).setText(formatTime(minimum));
+        }
 
-            int j =0;
-            for (HighscoreInfoContainer i : stats){
-                updateGeneralInfo(i.getTime(), i.getNumberOfGames(), i.getNumberOfHintsUsed());
-                setStats(i,j++);
-            }
-            setGeneralInfo();
+        private void setText(int viewId, int value) {
+            ((TextView) root.findViewById(viewId)).setText(String.valueOf(value));
+        }
 
-            ImageView imageView = (ImageView) rootView.findViewById(R.id.statistic_image);
-            imageView.setImageResource(GameType.getValidGameTypes().get(getArguments().getInt(ARG_SECTION_NUMBER)).getResIDImage());
-
-            return rootView;
+        private static String formatTime(int secondsTotal) {
+            int hours = secondsTotal / 3600;
+            int minutes = (secondsTotal / 60) % 60;
+            int seconds = secondsTotal % 60;
+            return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds);
         }
     }
 }
