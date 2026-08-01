@@ -10,6 +10,7 @@ import org.secuso.privacyfriendlybackup.api.backup.FileUtil
 import org.secuso.privacyfriendlybackup.api.backup.FileUtil.readPath
 import org.secuso.privacyfriendlybackup.api.pfa.IBackupRestorer
 import org.secuso.privacyfriendlysudoku.controller.database.DatabaseHelper
+import org.secuso.privacyfriendlysudoku.game.GameTypePreferences
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -105,7 +106,7 @@ class BackupRestorer : IBackupRestorer {
                 "pref_dark_mode_automatically_by_system" -> preferences.putBoolean(name, reader.nextBoolean())
                 "lastChosenDifficulty",
                 "pref_symbols",
-                "lastChosenGameType",
+                GameTypePreferences.PREF_CURRENT_GAME_TYPE,
                 "pref_difficulty_display",
                 "applied_difficulty_display",
                 "current_difficulty_category"-> preferences.putString(name, reader.nextString())

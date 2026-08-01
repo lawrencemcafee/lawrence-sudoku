@@ -19,6 +19,7 @@ import org.secuso.privacyfriendlysudoku.game.DifficultyDisplayMode;
 import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.DifficultyPreferences;
 import org.secuso.privacyfriendlysudoku.game.GameType;
+import org.secuso.privacyfriendlysudoku.game.GameTypePreferences;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -107,12 +108,7 @@ public final class NewLevelManager {
     }
 
     public void checkAndRestock() {
-        GameType type = GameType.Default_9x9;
-        try {
-            type = GameType.valueOf(settings.getString("lastChosenGameType", type.name()));
-        } catch(IllegalArgumentException ignored) {
-            // A removed or corrupt preference should not prevent background generation.
-        }
+        GameType type = new GameTypePreferences(settings).getCurrentGameType();
         DifficultyPreferences preferences = new DifficultyPreferences(settings);
         if(preferences.getMode() == DifficultyDisplayMode.NAMED) {
             requestRestock(type, preferences.getCurrentCategory());

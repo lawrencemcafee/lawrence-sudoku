@@ -35,6 +35,7 @@ import org.secuso.privacyfriendlysudoku.game.DifficultyDisplayMode;
 import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.DifficultyPreferences;
 import org.secuso.privacyfriendlysudoku.game.GameType;
+import org.secuso.privacyfriendlysudoku.game.GameTypePreferences;
 
 import java.util.Locale;
 
@@ -57,6 +58,8 @@ public class StatsActivity extends BaseActivity {
 
         difficultyPreferences = new DifficultyPreferences(
                 android.preference.PreferenceManager.getDefaultSharedPreferences(this));
+        GameTypePreferences gameTypePreferences = new GameTypePreferences(
+                android.preference.PreferenceManager.getDefaultSharedPreferences(this));
         selectedDifficultyIndex = difficultyPreferences.getSelectionIndex();
 
         sectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
@@ -64,6 +67,9 @@ public class StatsActivity extends BaseActivity {
         viewPager.setAdapter(sectionsPagerAdapter);
         TabLayout tabs = findViewById(R.id.tabs);
         tabs.setupWithViewPager(viewPager);
+        if(savedInstanceState == null) {
+            viewPager.setCurrentItem(gameTypePreferences.getCurrentGameTypeIndex(), false);
+        }
 
         difficultyText = findViewById(R.id.stats_difficulty_text);
         SeekBar selector = findViewById(R.id.stats_difficulty_selector);

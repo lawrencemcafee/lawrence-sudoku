@@ -64,6 +64,7 @@ import org.secuso.privacyfriendlysudoku.game.DifficultyDisplayMode;
 import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
 import org.secuso.privacyfriendlysudoku.game.DifficultyPreferences;
 import org.secuso.privacyfriendlysudoku.game.GameType;
+import org.secuso.privacyfriendlysudoku.game.GameTypePreferences;
 import org.secuso.privacyfriendlysudoku.ui.listener.IImportDialogFragmentListener;
 import org.secuso.privacyfriendlysudoku.R;
 import org.secuso.privacyfriendlysudoku.databinding.DialogFragmentImportBoardBinding;
@@ -82,6 +83,7 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
     TextView difficultyText;
     SharedPreferences settings;
     DifficultyPreferences difficultyPreferences;
+    GameTypePreferences gameTypePreferences;
     NewLevelManager newLevelManager;
     CheckBox createGameBar;
     ImageView arrowLeft, arrowRight;
@@ -152,6 +154,7 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
         }
 
         difficultyPreferences = new DifficultyPreferences(settings);
+        gameTypePreferences = new GameTypePreferences(settings);
         newLevelManager = NewLevelManager.getInstance(getApplicationContext(), settings);
 
         // check if we need to pre generate levels.
@@ -180,9 +183,7 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
         mViewPager.setAdapter(mSectionsPagerAdapter);
 
         // set default gametype choice to whatever was chosen the last time.
-        List<GameType> validGameTypes = GameType.getValidGameTypes();
-        String lastChosenGameType = settings.getString("lastChosenGameType", GameType.Default_9x9.name());
-        int index = validGameTypes.indexOf(Enum.valueOf(GameType.class, lastChosenGameType));
+        int index = gameTypePreferences.getCurrentGameTypeIndex();
         mViewPager.setCurrentItem(index);
         arrowLeft = (ImageView)findViewById(R.id.arrow_left);
         arrowRight = (ImageView) findViewById(R.id.arrow_right);
@@ -203,8 +204,8 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
                 if(gameTypeChangeFromUser) cancelGenerationWait();
                 arrowLeft.setVisibility((position==0)?View.INVISIBLE:View.VISIBLE);
                 arrowRight.setVisibility((position==mSectionsPagerAdapter.getCount()-1)?View.INVISIBLE:View.VISIBLE);
-                settings.edit().putString("lastChosenGameType",
-                        GameType.getValidGameTypes().get(position).name()).apply();
+                gameTypePreferences.setCurrentGameType(
+                        GameType.getValidGameTypes().get(position));
                 updateDifficultyUi();
             }
 
@@ -296,14 +297,12 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
                     i = new Intent(this, CreateSudokuActivity.class);
                     i.putExtra("gameType", gameType.name());
 
-                    SharedPreferences.Editor editor = settings.edit();
-                    editor.putString("lastChosenGameType", gameType.name());
-                    editor.apply();
+                    gameTypePreferences.setCurrentGameType(gameType);
                     break;
                 }
                 DifficultyLevel level = selectedExactLevel(gameType);
                 if(newLevelManager.isLevelLoadable(gameType, level)) {
-                    settings.edit().putString("lastChosenGameType", gameType.name()).apply();
+                    gameTypePreferences.setCurrentGameType(gameType);
                     i = new Intent(this, GameActivity.class);
                     i.putExtra("gameType", gameType.name());
                     i.putExtra("difficultyLevel", level.getValue());
@@ -442,7 +441,7 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
 
     private void startGeneratedGame(GameType gameType, DifficultyLevel level) {
         finishGenerationWait();
-        settings.edit().putString("lastChosenGameType", gameType.name()).apply();
+        gameTypePreferences.setCurrentGameType(gameType);
         final Intent intent = new Intent(this, GameActivity.class);
         intent.putExtra("gameType", gameType.name());
         intent.putExtra("difficultyLevel", level.getValue());

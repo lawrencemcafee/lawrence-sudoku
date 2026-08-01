@@ -42,8 +42,9 @@ Validation completed so far:
   app setup;
 - numbered Level 10 converts to named Challenge, and switching back selects
   Level 9, the category's lower exact level;
-- High Scores opens at the main menu's Level 9 selection, and browsing another
-  statistics level does not change the main menu;
+- High Scores opens at both the main menu's Level 9 and 9x9 selections, and
+  browsing another statistics level or puzzle size does not change the main
+  menu;
 - an empty Level 10 pool shows an explicit generating state, creates an exact
   Level 10 puzzle, and opens it automatically without a second button press;
 - no fatal Android runtime or SQLite errors occurred during these checks.
