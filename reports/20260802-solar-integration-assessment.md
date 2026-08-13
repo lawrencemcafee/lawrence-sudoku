@@ -14,13 +14,13 @@ Solar's unified Android app is a Compose application whose game implementations 
 
 Canonical internal references:
 
-- Solar app module contract: `/home/lcmcafee/office/claude/solar/app/CLAUDE.md`
-- Shared UI contract: `/home/lcmcafee/office/claude/solar/common/CLAUDE.md`
-- Included game libraries: `/home/lcmcafee/office/claude/solar/app/android/settings.gradle.kts`
-- Unified navigation and game top bars: `/home/lcmcafee/office/claude/solar/app/android/app/src/main/java/com/solar/app/ui/navigation/SolarNavHost.kt`
-- Home grid: `/home/lcmcafee/office/claude/solar/app/android/app/src/main/java/com/solar/app/ui/home/HomeScreen.kt`
-- Shared top bar: `/home/lcmcafee/office/claude/solar/common/android/src/main/java/com/solar/common/ui/SolarTopBar.kt`
-- Solar palette: `/home/lcmcafee/office/claude/solar/app/android/app/src/main/java/com/solar/app/ui/theme/Color.kt`
+- Solar app module contract: `/home/lcmcafee/office/solar/app/CLAUDE.md`
+- Shared UI contract: `/home/lcmcafee/office/solar/common/CLAUDE.md`
+- Included game libraries: `/home/lcmcafee/office/solar/app/android/settings.gradle.kts`
+- Unified navigation and game top bars: `/home/lcmcafee/office/solar/app/android/app/src/main/java/com/solar/app/ui/navigation/SolarNavHost.kt`
+- Home grid: `/home/lcmcafee/office/solar/app/android/app/src/main/java/com/solar/app/ui/home/HomeScreen.kt`
+- Shared top bar: `/home/lcmcafee/office/solar/common/android/src/main/java/com/solar/common/ui/SolarTopBar.kt`
+- Solar palette: `/home/lcmcafee/office/solar/app/android/app/src/main/java/com/solar/app/ui/theme/Color.kt`
 - Existing Sudoku UI: `/home/lcmcafee/office/lawrence/sudoku/privacy-friendly-sudoku/app/src/main/java/org/secuso/privacyfriendlysudoku/ui/`
 
 Ludoku currently uses AppCompat Activities, XML layouts, its own toolbar and navigation drawer, custom Views, `SharedPreferences`, and `SQLiteOpenHelper`. Those screens cannot simply be embedded without producing a nested navigation shell and visibly different interaction patterns.
