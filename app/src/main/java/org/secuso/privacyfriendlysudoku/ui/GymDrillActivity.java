@@ -58,6 +58,12 @@ public class GymDrillActivity extends BaseActivity {
     private static final String STATE_ATTEMPT = "gymAttempt";
     private static final String STATE_ELIGIBLE = "gymEligible";
     private static final String STATE_REVEAL = "gymReveal";
+    private static final String STATE_INTERACTION = "gymInteraction";
+    private static final String STATE_ROW = "row";
+    private static final String STATE_COL = "col";
+    private static final String STATE_VALUE = "value";
+    private static final String STATE_HINT_OPEN = "hintOpen";
+    private static final String STATE_HINT_PAGE = "hintPage";
     private static final long NEXT_DELAY_MS = 600L;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -79,6 +85,9 @@ public class GymDrillActivity extends BaseActivity {
     private boolean completionPending;
     private boolean destroyed;
     private boolean keyboardReady;
+    private boolean resumed;
+    private Bundle pendingInteraction;
+    private HumanHintDialog hintDialog;
 
     private GameController gameController;
     private SudokuFieldLayout field;
@@ -111,6 +120,7 @@ public class GymDrillActivity extends BaseActivity {
             attemptStarted = savedInstanceState.getBoolean(STATE_ATTEMPT);
             eligible = savedInstanceState.getBoolean(STATE_ELIGIBLE, true);
             revealRecorded = savedInstanceState.getBoolean(STATE_REVEAL);
+            pendingInteraction = savedInstanceState.getBundle(STATE_INTERACTION);
         }
 
         setContentView(R.layout.activity_gym_drill);
@@ -139,6 +149,19 @@ public class GymDrillActivity extends BaseActivity {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        resumed = true;
+        restoreInteraction();
+    }
+
+    @Override
+    protected void onPause() {
+        resumed = false;
+        super.onPause();
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if(item.getItemId() == android.R.id.home) {
             finish();
@@ -160,11 +183,52 @@ public class GymDrillActivity extends BaseActivity {
         state.putBoolean(STATE_ATTEMPT, attemptStarted);
         state.putBoolean(STATE_ELIGIBLE, eligible);
         state.putBoolean(STATE_REVEAL, revealRecorded);
+        state.putBundle(STATE_INTERACTION, captureInteraction());
+    }
+
+    private Bundle captureInteraction() {
+        // A second recreation may happen before the first asynchronous restore finishes.
+        if(pendingInteraction != null) return new Bundle(pendingInteraction);
+        Bundle state = new Bundle();
+        if(current != null) {
+            state.putInt(STATE_ROW, gameController.getSelectedRow());
+            state.putInt(STATE_COL, gameController.getSelectedCol());
+            state.putInt(STATE_VALUE, gameController.getSelectedValue());
+        }
+        if(hintDialog != null && hintDialog.isShowing()) {
+            state.putBoolean(STATE_HINT_OPEN, true);
+            state.putInt(STATE_HINT_PAGE, hintDialog.getDetailIndex());
+        }
+        return state;
+    }
+
+    private void restoreInteraction() {
+        if(current == null || pendingInteraction == null) return;
+        gameController.resetSelects();
+        int value = pendingInteraction.getInt(STATE_VALUE);
+        int row = pendingInteraction.getInt(STATE_ROW, -1);
+        int col = pendingInteraction.getInt(STATE_COL, -1);
+        if(value > 0 && value <= TrainingPosition.SIZE) {
+            gameController.selectValue(value);
+        } else if(row >= 0 && row < TrainingPosition.SIZE
+                && col >= 0 && col < TrainingPosition.SIZE) {
+            gameController.selectCell(row, col);
+        }
+        if(pendingInteraction.getBoolean(STATE_HINT_OPEN)) {
+            // Preparation can finish while stopped; wait until the window is active.
+            if(!resumed) return;
+            int page = pendingInteraction.getInt(STATE_HINT_PAGE, -1);
+            pendingInteraction = null;
+            showHint(page);
+        } else {
+            pendingInteraction = null;
+        }
     }
 
     @Override
     protected void onDestroy() {
         destroyed = true;
+        if(hintDialog != null) hintDialog.dismiss();
         mHandler.removeCallbacksAndMessages(null);
         executor.shutdownNow();
         if(gameController != null) gameController.deleteTimer();
@@ -249,6 +313,7 @@ public class GymDrillActivity extends BaseActivity {
         actionView.setText(prepared.position.getAction() == GameHint.Action.PLACE_VALUE
                 ? R.string.gym_action_placement : R.string.gym_action_elimination);
         updateStats();
+        restoreInteraction();
         requestPrefetch(sequence + 1);
     }
 
@@ -313,8 +378,14 @@ public class GymDrillActivity extends BaseActivity {
     }
 
     private void showHint() {
-        if(current == null || completionPending) return;
-        new HumanHintDialog(this, gameController, current.hint, new HumanHintDialog.Listener() {
+        showHint(-1);
+    }
+
+    private void showHint(int initialPage) {
+        if(!resumed || destroyed || current == null || completionPending
+                || (hintDialog != null && hintDialog.isShowing())) return;
+        hintDialog = new HumanHintDialog(this, gameController, current.hint,
+                new HumanHintDialog.Listener() {
             @Override
             public void onHintOpened() {
                 beginAttempt();
@@ -331,7 +402,8 @@ public class GymDrillActivity extends BaseActivity {
                 gameController.notifyHighlightChangedListeners();
                 completeCurrent();
             }
-        }).show();
+        });
+        hintDialog.show(initialPage);
     }
 
     private void completeCurrent() {

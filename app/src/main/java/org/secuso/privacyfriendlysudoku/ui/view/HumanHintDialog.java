@@ -54,6 +54,11 @@ public final class HumanHintDialog {
     }
 
     public void show() {
+        show(-1);
+    }
+
+    /** Reopen an explanation at its saved page; -1 is the summary. */
+    public void show(int initialDetailIndex) {
         dialog = new AlertDialog.Builder(context, R.style.AppTheme_Dialog)
                 .setTitle(hint.getTitle())
                 .setMessage(hint.getSummary())
@@ -69,9 +74,26 @@ public final class HumanHintDialog {
             gameController.beginHint(hint);
             if(listener != null) listener.onHintOpened();
             configureWindow();
-            showSummary();
+            if(initialDetailIndex >= 0 && initialDetailIndex < hint.getDetails().size()) {
+                showDetail(initialDetailIndex);
+            } else {
+                showSummary();
+            }
         });
         dialog.show();
+    }
+
+    public boolean isShowing() {
+        return dialog != null && dialog.isShowing();
+    }
+
+    public int getDetailIndex() {
+        return detailIndex;
+    }
+
+    /** Release the window and board overlay when its owning activity is destroyed. */
+    public void dismiss() {
+        if(dialog != null) dialog.dismiss();
     }
 
     private void configureWindow() {

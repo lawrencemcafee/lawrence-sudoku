@@ -28,13 +28,21 @@ android {
         versionName "3.2.6"
         vectorDrawables.useSupportLibrary = true
         multiDexEnabled = true
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+        // Device tests use their own app data, keeping installed games and Gym stats intact.
+        uiTest {
+            initWith debug
+            applicationIdSuffix ".uitest"
+            matchingFallbacks = ['debug']
+        }
     }
+    testBuildType "uiTest"
 
     buildFeatures {
         buildConfig true
@@ -73,6 +81,9 @@ dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'androidx.preference:preference:1.1.1'
     testImplementation 'junit:junit:4.13.1'
+    androidTestImplementation 'androidx.test:core:1.5.0'
+    androidTestImplementation 'androidx.test:runner:1.5.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     implementation 'androidx.core:core:1.3.2'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     implementation 'androidx.legacy:legacy-support-v13:1.0.0'

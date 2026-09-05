@@ -47,3 +47,5 @@ git diff --check
 The debug APK was installed on the Pixelbook Android environment (`Google_Pixelbook`, `emulator-5554`). Manual checks covered the main-menu and drawer entry, full catalog scrolling, Focused/Full switching, a Last Digit drill, a Jellyfish drill, hint display/application, immediate next-position loading, persisted statistics, immediate catalog refresh, mode-separated statistics, and acceptance of a later Naked Single when an earlier valid Naked Single was also present.
 
 APK: `app/build/outputs/apk/debug/pfa-sudoku-debug-v3.2.6.apk`
+
+Follow-up: [Gym session continuity](20260905-gym-session-continuity.md).
