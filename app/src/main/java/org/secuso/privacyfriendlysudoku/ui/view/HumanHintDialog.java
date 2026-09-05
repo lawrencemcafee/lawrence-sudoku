@@ -29,16 +29,28 @@ import java.util.List;
  */
 public final class HumanHintDialog {
 
+    public interface Listener {
+        void onHintOpened();
+        void onHintApplied();
+    }
+
     private final Context context;
     private final GameController gameController;
     private final GameHint hint;
+    private final Listener listener;
     private AlertDialog dialog;
     private int detailIndex = -1;
 
     public HumanHintDialog(Context context, GameController gameController, GameHint hint) {
+        this(context, gameController, hint, null);
+    }
+
+    public HumanHintDialog(Context context, GameController gameController, GameHint hint,
+                           Listener listener) {
         this.context = context;
         this.gameController = gameController;
         this.hint = hint;
+        this.listener = listener;
     }
 
     public void show() {
@@ -55,6 +67,7 @@ public final class HumanHintDialog {
         dialog.setOnDismissListener(ignored -> gameController.endHint());
         dialog.setOnShowListener(ignored -> {
             gameController.beginHint(hint);
+            if(listener != null) listener.onHintOpened();
             configureWindow();
             showSummary();
         });
@@ -132,6 +145,7 @@ public final class HumanHintDialog {
 
     private void applyHint() {
         gameController.applyHint(hint);
+        if(listener != null) listener.onHintApplied();
         dialog.dismiss();
     }
 }

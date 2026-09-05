@@ -39,6 +39,10 @@ import org.secuso.privacyfriendlysudoku.game.listener.IHighlightChangedListener;
 
 public class SudokuKeyboardLayout extends LinearLayout implements IHighlightChangedListener {
 
+    public interface OnValueClickListener {
+        void onValueClick(int value);
+    }
+
     AttributeSet attrs;
     SudokuButton [] buttons;
     GameController gameController;
@@ -46,6 +50,7 @@ public class SudokuKeyboardLayout extends LinearLayout implements IHighlightChan
     float normalTextSize = 20; // in sp
     LinearLayout [] layouts = new LinearLayout[2];
     float buttonMargin;
+    private OnValueClickListener valueClickListener;
 
     OnClickListener listener = new OnClickListener() {
         @Override
@@ -53,7 +58,11 @@ public class SudokuKeyboardLayout extends LinearLayout implements IHighlightChan
             if(v instanceof SudokuButton) {
                 SudokuButton btn = (SudokuButton)v;
 
-                gameController.selectValue(btn.getValue());
+                if(valueClickListener == null) {
+                    gameController.selectValue(btn.getValue());
+                } else {
+                    valueClickListener.onValueClick(btn.getValue());
+                }
             }
         }
     };
@@ -166,6 +175,10 @@ public class SudokuKeyboardLayout extends LinearLayout implements IHighlightChan
 
         gameController = gc;
         gameController.registerHighlightChangedListener(this);
+    }
+
+    public void setOnValueClickListener(OnValueClickListener listener) {
+        valueClickListener = listener;
     }
 
     public void updateNotesEnabled() {

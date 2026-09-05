@@ -14,6 +14,7 @@ import org.secuso.privacyfriendlysudoku.game.GameBoard;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -137,6 +138,24 @@ public class HumanHintEngineTest {
         assertTrue(hint.eliminates(0, 0, 1));
         assertTrue(hint.getDetails().stream().anyMatch(message -> message.startsWith("Contradiction:")));
         assertFalse(hint.getDetails().stream().anyMatch(message -> message.contains("remaining puzzle")));
+    }
+
+    @Test
+    public void findsEveryValidTargetForOneTechnique() {
+        CandidateState singles = state6(c(0, 0, 1), c(0, 1, 2));
+        List<GameHint.Candidate> placements = HumanHintEngine.findTechniqueTargets(
+                singles, solution(6), Symbol.Default, HumanTechnique.NAKED_SINGLE);
+        assertEquals(2, placements.size());
+        assertTrue(placements.contains(new GameHint.Candidate(0, 0, 1)));
+        assertTrue(placements.contains(new GameHint.Candidate(0, 1, 2)));
+
+        CandidateState pointing = state6(
+                c(0, 0, 1), c(0, 1, 1), c(0, 4, 1), c(0, 5, 1), c(1, 3, 1));
+        List<GameHint.Candidate> eliminations = HumanHintEngine.findTechniqueTargets(
+                pointing, solution(6), Symbol.Default, HumanTechnique.POINTING_CANDIDATES);
+        assertEquals(2, eliminations.size());
+        assertTrue(eliminations.contains(new GameHint.Candidate(0, 4, 1)));
+        assertTrue(eliminations.contains(new GameHint.Candidate(0, 5, 1)));
     }
 
     private void assertTopology(int size, int blockHeight, int blockWidth) {

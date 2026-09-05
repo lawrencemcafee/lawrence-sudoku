@@ -62,6 +62,8 @@ public class SudokuCellView extends View {
     int textColor;
     private GameHint activeHint;
     private int activeHintFrame = -1;
+    private int feedbackValue;
+    private boolean feedbackCorrect;
 
     public SudokuCellView(Context context, AttributeSet attrs){
         super(context);
@@ -85,6 +87,8 @@ public class SudokuCellView extends View {
     }
 
     public void setValues (int width, int height, int sectionHeight, int sectionWidth, GameCell gameCell,int size) {
+        boolean dimensionsChanged = mWidth != width || mHeight != height
+                || mRow != gameCell.getRow() || mCol != gameCell.getCol();
         mSectionHeight = sectionHeight;
         mSectionWidth = sectionWidth;
         mGameCell = gameCell;
@@ -94,7 +98,7 @@ public class SudokuCellView extends View {
         mCol = gameCell.getCol();
         this.size = size;
 
-        initLayoutParams();
+        if(dimensionsChanged || params == null) initLayoutParams();
     }
 
     private void initLayoutParams() {
@@ -121,6 +125,18 @@ public class SudokuCellView extends View {
     public void setHintOverlay(GameHint hint, int frameIndex) {
         activeHint = hint;
         activeHintFrame = frameIndex;
+    }
+
+    public void showCandidateFeedback(int value, boolean correct) {
+        feedbackValue = value;
+        feedbackCorrect = correct;
+        invalidate();
+        postDelayed(() -> {
+            if(feedbackValue == value) {
+                feedbackValue = 0;
+                invalidate();
+            }
+        }, 450);
     }
 
     /*@Override
@@ -239,16 +255,30 @@ public class SudokuCellView extends View {
             boolean visible = preview
                     ? activeHint.hasPreviewCandidate(mRow, mCol, value)
                     : mGameCell.getNotes()[value - 1];
+            boolean feedback = feedbackValue == value;
             if(mark != null) visible = true;
+            if(feedback) visible = true;
             if(!visible && !isElimination) continue;
 
             GameHint.Mark effectiveMark = isElimination ? GameHint.Mark.ELIMINATE : mark;
-            paint.setColor(effectiveMark == null ? textColor : HintPalette.colorFor(effectiveMark));
+            paint.setColor(feedback
+                    ? (feedbackCorrect ? Color.rgb(46, 125, 50) : Color.rgb(198, 40, 40))
+                    : (effectiveMark == null ? textColor : HintPalette.colorFor(effectiveMark)));
             paint.setTypeface(effectiveMark == null ? Typeface.SANS_SERIF : Typeface.DEFAULT_BOLD);
             float x = candidateCenterX(value);
             float y = candidateCenterY(value) - (paint.ascent() + paint.descent()) / 2f;
             String glyph = Symbol.getSymbol(symbolsToUse, value - 1);
             canvas.drawText(glyph, x, y, paint);
+
+            if(feedback) {
+                Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
+                ring.setStyle(Paint.Style.STROKE);
+                ring.setStrokeWidth(Math.max(2f, Math.min(slotWidth, slotHeight) / 12f));
+                ring.setColor(feedbackCorrect
+                        ? Color.rgb(46, 125, 50) : Color.rgb(198, 40, 40));
+                canvas.drawCircle(x, candidateCenterY(value),
+                        Math.min(slotWidth, slotHeight) * 0.36f, ring);
+            }
 
             if(isElimination || effectiveMark == GameHint.Mark.CONTRADICTION) {
                 Paint strike = new Paint(Paint.ANTI_ALIAS_FLAG);

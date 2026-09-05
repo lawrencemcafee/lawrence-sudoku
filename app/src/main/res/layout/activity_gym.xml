@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main_content"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:theme="@style/ToolbarStyle"
+        app:popupTheme="@style/AppTheme.PopupOverlay" />
+
+    <RadioGroup
+        android:id="@+id/gymModeToggle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatRadioButton
+            android:id="@+id/gymModeFocused"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="@drawable/gym_mode_button"
+            android:button="@null"
+            android:gravity="center"
+            android:text="@string/gym_mode_focused"
+            android:textColor="@color/gym_mode_text" />
+
+        <androidx.appcompat.widget.AppCompatRadioButton
+            android:id="@+id/gymModeFull"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="@drawable/gym_mode_button"
+            android:button="@null"
+            android:gravity="center"
+            android:text="@string/gym_mode_full"
+            android:textColor="@color/gym_mode_text" />
+    </RadioGroup>
+
+    <ListView
+        android:id="@+id/gymSkillList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:divider="?android:attr/listDivider"
+        android:dividerHeight="1dp"
+        android:paddingBottom="12dp" />
+</LinearLayout>

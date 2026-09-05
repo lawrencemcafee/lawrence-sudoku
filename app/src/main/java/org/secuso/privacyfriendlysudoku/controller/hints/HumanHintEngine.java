@@ -11,6 +11,7 @@ package org.secuso.privacyfriendlysudoku.controller.hints;
 import org.secuso.privacyfriendlysudoku.controller.Symbol;
 import org.secuso.privacyfriendlysudoku.game.GameBoard;
 import org.secuso.privacyfriendlysudoku.game.GameCell;
+import org.secuso.privacyfriendlysudoku.game.GameType;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ public final class HumanHintEngine {
     private final int[] solution;
     private final Symbol symbols;
     private final int size;
+    private GameHint.Candidate requiredTarget;
 
     private HumanHintEngine(GameBoard board, CandidateState state, int[] solution, Symbol symbols) {
         this.board = board;
@@ -65,9 +67,79 @@ public final class HumanHintEngine {
     /** Package-visible test hook that runs one named rule against a handcrafted candidate state. */
     static GameHint findTechnique(CandidateState state, int[] solution, Symbol symbols,
                                   String technique) {
+        return findTechnique(state, solution, symbols, HumanTechnique.fromTitle(technique));
+    }
+
+    /** Run one selected rule against a prevalidated candidate-state snapshot. */
+    public static GameHint findTechnique(CandidateState state, int[] solution, Symbol symbols,
+                                         HumanTechnique technique) {
+        if(state == null || technique == null || solution == null
+                || solution.length != state.getSize() * state.getSize()) return null;
         HumanHintEngine engine = new HumanHintEngine(null, state, solution, symbols);
-        Deduction deduction = engine.findDeduction(HumanTechnique.fromTitle(technique));
+        Deduction deduction = engine.findDeduction(technique);
         return deduction == null ? null : engine.toHint(deduction);
+    }
+
+    /** Convenience API for immutable Gym records. */
+    public static GameHint findTechnique(GameType gameType, int[] values, int[] masks,
+                                         int[] solution, Symbol symbols,
+                                         HumanTechnique technique) {
+        return findTechnique(CandidateState.fromSnapshot(gameType, values, masks), solution,
+                symbols, technique);
+    }
+
+    /** Return every cell/value consequence that can be justified by one selected rule. */
+    public static List<GameHint.Candidate> findTechniqueTargets(
+            GameType gameType, int[] values, int[] masks, int[] solution, Symbol symbols,
+            HumanTechnique technique) {
+        return findTechniqueTargets(CandidateState.fromSnapshot(gameType, values, masks),
+                solution, symbols, technique);
+    }
+
+    static List<GameHint.Candidate> findTechniqueTargets(
+            CandidateState state, int[] solution, Symbol symbols, HumanTechnique technique) {
+        if(state == null || technique == null || solution == null
+                || solution.length != state.getSize() * state.getSize()) {
+            return Collections.emptyList();
+        }
+        HumanHintEngine engine = new HumanHintEngine(null, state, solution, symbols);
+        Set<GameHint.Candidate> targets = new LinkedHashSet<>();
+        boolean placement = technique == HumanTechnique.LAST_DIGIT
+                || technique == HumanTechnique.NAKED_SINGLE
+                || technique == HumanTechnique.HIDDEN_SINGLE;
+        for(int index = 0; index < state.getSize() * state.getSize(); index++) {
+            if(state.getValue(index) != 0) continue;
+            int row = index / state.getSize();
+            int col = index % state.getSize();
+            if(placement) {
+                engine.addIfValidTarget(targets,
+                        new GameHint.Candidate(row, col, solution[index]), technique);
+            } else {
+                for(int value : state.candidates(index)) {
+                    if(value != solution[index]) {
+                        engine.addIfValidTarget(targets,
+                                new GameHint.Candidate(row, col, value), technique);
+                    }
+                }
+            }
+        }
+        engine.requiredTarget = null;
+        return new ArrayList<>(targets);
+    }
+
+    private void addIfValidTarget(Set<GameHint.Candidate> targets,
+                                  GameHint.Candidate target, HumanTechnique technique) {
+        requiredTarget = target;
+        Deduction deduction = findDeduction(technique);
+        if(deduction != null) targets.add(target);
+    }
+
+    private boolean accepts(BoardTopology.Cell cell, int value) {
+        return requiredTarget == null || requiredTarget.equals(candidate(cell, value));
+    }
+
+    private boolean accepts(List<GameHint.Candidate> candidates) {
+        return requiredTarget == null || candidates.contains(requiredTarget);
     }
 
     /** Package-visible entry point used by the complete difficulty grader. */
@@ -176,6 +248,7 @@ public final class HumanHintEngine {
             }
             if(emptyCount == 1 && Integer.bitCount(full & ~used) == 1) {
                 int value = Integer.numberOfTrailingZeros(full & ~used) + 1;
+                if(!accepts(empty, value)) continue;
                 List<GameHint.HintFrame> frames = Arrays.asList(
                         frame("Every cell but one is filled in " + unit.label() + ".",
                                 cells(empty, GameHint.Mark.FOCUS), candidates(),
@@ -198,6 +271,7 @@ public final class HumanHintEngine {
             if(state.getValue(index) == 0 && state.candidateCount(index) == 1) {
                 BoardTopology.Cell cell = topology.cell(index);
                 int value = firstValue(state.getMask(index));
+                if(!accepts(cell, value)) continue;
                 List<GameHint.CandidateMark> ruledOut = new ArrayList<>();
                 for(int other = 1; other <= size; other++) {
                     if(other != value) ruledOut.add(mark(candidate(cell, other), GameHint.Mark.ELIMINATE));
@@ -224,6 +298,7 @@ public final class HumanHintEngine {
                 List<BoardTopology.Cell> positions = state.candidateCells(unit, value);
                 if(positions.size() == 1) {
                     BoardTopology.Cell cell = positions.get(0);
+                    if(!accepts(cell, value)) continue;
                     List<GameHint.HintFrame> frames = Arrays.asList(
                             frame("Consider every place for " + symbol(value) + " in " + unit.label() + ".",
                                     cells(cell, GameHint.Mark.FOCUS),
@@ -255,13 +330,13 @@ public final class HumanHintEngine {
                 if(sameRow) {
                     List<GameHint.Candidate> removals = candidatesInUnitOutside(
                             topology.row(positions.get(0).getRow()), block, value);
-                    if(!removals.isEmpty()) return lockedCandidates("Pointing Candidates", block,
+                    if(!removals.isEmpty() && accepts(removals)) return lockedCandidates("Pointing Candidates", block,
                             topology.row(positions.get(0).getRow()), positions, value, removals);
                 }
                 if(sameColumn) {
                     List<GameHint.Candidate> removals = candidatesInUnitOutside(
                             topology.column(positions.get(0).getCol()), block, value);
-                    if(!removals.isEmpty()) return lockedCandidates("Pointing Candidates", block,
+                    if(!removals.isEmpty() && accepts(removals)) return lockedCandidates("Pointing Candidates", block,
                             topology.column(positions.get(0).getCol()), positions, value, removals);
                 }
             }
@@ -279,7 +354,7 @@ public final class HumanHintEngine {
                 BoardTopology.Unit block = topology.block(topology.blockIndex(
                         positions.get(0).getRow(), positions.get(0).getCol()));
                 List<GameHint.Candidate> removals = candidatesInUnitOutside(block, line, value);
-                if(!removals.isEmpty()) return lockedCandidates("Claiming Candidates", line,
+                if(!removals.isEmpty() && accepts(removals)) return lockedCandidates("Claiming Candidates", line,
                         block, positions, value, removals);
             }
         }
@@ -327,7 +402,7 @@ public final class HumanHintEngine {
                     int removable = state.getMask(cell.getIndex()) & union;
                     addCandidates(removals, cell, removable);
                 }
-                if(!removals.isEmpty()) {
+                if(!removals.isEmpty() && accepts(removals)) {
                     String title = "Naked " + subsetName(subsetSize);
                     List<GameHint.CandidateMark> subsetMarks = markMaskCandidates(
                             subset, union, GameHint.Mark.SUPPORT);
@@ -372,7 +447,7 @@ public final class HumanHintEngine {
                 for(BoardTopology.Cell cell : positions) {
                     addCandidates(removals, cell, state.getMask(cell.getIndex()) & ~valueMask);
                 }
-                if(!removals.isEmpty()) {
+                if(!removals.isEmpty() && accepts(removals)) {
                     List<BoardTopology.Cell> cells = new ArrayList<>(positions);
                     String title = "Hidden " + subsetName(subsetSize);
                     List<GameHint.CandidateMark> support = markMaskCandidates(cells, valueMask,
@@ -428,7 +503,7 @@ public final class HumanHintEngine {
                         if(!bases.contains(base)) removals.add(candidate(cell, value));
                     }
                 }
-                if(!removals.isEmpty()) {
+                if(!removals.isEmpty() && accepts(removals)) {
                     String title = fishName(fishSize);
                     List<GameHint.UnitMark> unitMarks = new ArrayList<>();
                     for(int base : bases) unitMarks.add(new GameHint.UnitMark(
@@ -480,7 +555,7 @@ public final class HumanHintEngine {
                             List<GameHint.Candidate> removals = commonPeerCandidates(
                                     Arrays.asList(roofA, roofB), value,
                                     Arrays.asList(baseA, baseB, roofA, roofB));
-                            if(!removals.isEmpty()) {
+                            if(!removals.isEmpty() && accepts(removals)) {
                                 List<BoardTopology.Cell> supportCells = Arrays.asList(
                                         baseA, roofA, baseB, roofB);
                                 List<GameHint.Link> links = Arrays.asList(
@@ -528,6 +603,7 @@ public final class HumanHintEngine {
                             if(target.equals(rowRoof) || target.equals(colRoof)
                                     || !state.hasCandidate(target.getIndex(), value)) continue;
                             List<GameHint.Candidate> removals = Collections.singletonList(candidate(target, value));
+                            if(!accepts(removals)) continue;
                             List<BoardTopology.Cell> supportCells = Arrays.asList(
                                     rowRoof, rowBase, colBase, colRoof);
                             List<GameHint.Link> links = Arrays.asList(
@@ -577,7 +653,7 @@ public final class HumanHintEngine {
                     List<GameHint.Candidate> removals = commonPeerCandidates(
                             Arrays.asList(firstWing, secondWing), value,
                             Arrays.asList(pivot, firstWing, secondWing));
-                    if(!removals.isEmpty()) return wing("XY-Wing", pivot,
+                    if(!removals.isEmpty() && accepts(removals)) return wing("XY-Wing", pivot,
                             Arrays.asList(firstWing, secondWing), value, removals);
                 }
             }
@@ -604,7 +680,7 @@ public final class HumanHintEngine {
                     List<GameHint.Candidate> removals = commonPeerCandidates(
                             Arrays.asList(pivot, firstWing, secondWing), value,
                             Arrays.asList(pivot, firstWing, secondWing));
-                    if(!removals.isEmpty()) return wing("XYZ-Wing", pivot,
+                    if(!removals.isEmpty() && accepts(removals)) return wing("XYZ-Wing", pivot,
                             Arrays.asList(firstWing, secondWing), value, removals);
                 }
             }
@@ -667,7 +743,7 @@ public final class HumanHintEngine {
                         List<GameHint.Candidate> removals = commonPeerCandidates(
                                 Arrays.asList(wingA, wingB), eliminateValue,
                                 Arrays.asList(wingA, wingB));
-                        if(removals.isEmpty()) continue;
+                        if(removals.isEmpty() || !accepts(removals)) continue;
                         List<GameHint.Link> links = Arrays.asList(
                                 link(wingA, wingALink, linkValue, false),
                                 link(wingALink, wingBLink, linkValue, true),
@@ -742,6 +818,7 @@ public final class HumanHintEngine {
                     if(collision) {
                         List<GameHint.Candidate> removals = new ArrayList<>();
                         for(BoardTopology.Cell cell : sameColor) removals.add(candidate(cell, value));
+                        if(!accepts(removals)) continue;
                         return coloring(value, colors, removals,
                                 "Two candidates with the same color see each other, so that color is false.");
                     }
@@ -757,7 +834,7 @@ public final class HumanHintEngine {
                         removals.add(candidate(cell, value));
                     }
                 }
-                if(!removals.isEmpty()) {
+                if(!removals.isEmpty() && accepts(removals)) {
                     return coloring(value, colors, removals,
                             "Each uncolored target sees both colors, so it sees whichever color is true.");
                 }
@@ -826,7 +903,7 @@ public final class HumanHintEngine {
             if(requireStrong && path.size() >= 4) {
                 List<GameHint.Candidate> removals = commonPeerCandidates(
                         Arrays.asList(path.get(0), next), value, path);
-                if(!removals.isEmpty()) {
+                if(!removals.isEmpty() && accepts(removals)) {
                     return new XChainResult(new ArrayList<>(path), value, removals);
                 }
             }
@@ -905,7 +982,7 @@ public final class HumanHintEngine {
             if(nextOther == outer && path.size() >= 3) {
                 List<GameHint.Candidate> removals = commonPeerCandidates(
                         Arrays.asList(start, next), outer, path);
-                if(!removals.isEmpty()) {
+                if(!removals.isEmpty() && accepts(removals)) {
                     return new XYChainResult(new ArrayList<>(path),
                             new ArrayList<>(sharedValues), outer, removals);
                 }
@@ -950,6 +1027,7 @@ public final class HumanHintEngine {
     }
 
     private Deduction findForcingProof() {
+        if(requiredTarget != null) return findRequiredForcingProof();
         List<BoardTopology.Cell> roots = new ArrayList<>();
         for(int index = 0; index < size * size; index++) {
             if(state.getValue(index) == 0 && state.candidateCount(index) > 1) roots.add(topology.cell(index));
@@ -986,6 +1064,24 @@ public final class HumanHintEngine {
         frames.add(eliminationConclusion(removals));
         return elimination("Forcing Chain", "Assuming " + symbol(bestCandidate.getValue()) + " at "
                 + coordinate(topology.cell(bestCandidate.getRow(), bestCandidate.getCol()))
+                + " creates a contradiction, so that candidate can be removed.", frames, removals);
+    }
+
+    private Deduction findRequiredForcingProof() {
+        int index = requiredTarget.getRow() * size + requiredTarget.getCol();
+        if(index < 0 || index >= size * size || state.getValue(index) != 0
+                || state.candidateCount(index) <= 1
+                || !state.hasCandidate(index, requiredTarget.getValue())
+                || solution[index] == requiredTarget.getValue()) return null;
+        ProofNode proof = prove(state, requiredTarget, 0);
+        if(proof == null) return null;
+        List<GameHint.HintFrame> frames = new ArrayList<>();
+        appendProofFrames(proof, frames);
+        List<GameHint.Candidate> removals = Collections.singletonList(requiredTarget);
+        frames.add(eliminationConclusion(removals));
+        BoardTopology.Cell cell = topology.cell(index);
+        return elimination("Forcing Chain", "Assuming " + symbol(requiredTarget.getValue())
+                + " at " + coordinate(cell)
                 + " creates a contradiction, so that candidate can be removed.", frames, removals);
     }
 

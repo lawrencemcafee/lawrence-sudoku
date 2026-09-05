@@ -10,6 +10,7 @@ package org.secuso.privacyfriendlysudoku.controller.hints;
 
 import org.secuso.privacyfriendlysudoku.game.GameBoard;
 import org.secuso.privacyfriendlysudoku.game.GameCell;
+import org.secuso.privacyfriendlysudoku.game.GameType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,6 +91,30 @@ public final class CandidateState {
         return new CandidateState(topology, Arrays.copyOf(values, values.length),
                 Arrays.copyOf(masks, masks.length), true, 0);
     }
+
+    /** Build a normalized snapshot for offline-validated training data. */
+    public static CandidateState fromSnapshot(GameType gameType, int[] values, int[] masks) {
+        if(gameType == null) throw new IllegalArgumentException("Game type may not be null.");
+        int size = gameType.getSize();
+        int count = size * size;
+        if(values == null || values.length != count || masks == null || masks.length != count) {
+            throw new IllegalArgumentException("Snapshot dimensions do not match the game type.");
+        }
+        int validMask = (1 << size) - 1;
+        for(int index = 0; index < count; index++) {
+            if(values[index] < 0 || values[index] > size
+                    || (masks[index] & ~validMask) != 0
+                    || (values[index] != 0 && masks[index] != 0)) {
+                throw new IllegalArgumentException("Invalid snapshot cell at index " + index + ".");
+            }
+        }
+        BoardTopology topology = new BoardTopology(size,
+                gameType.getSectionHeight(), gameType.getSectionWidth());
+        return fromMasks(topology, values, masks);
+    }
+
+    public int[] copyValues() { return Arrays.copyOf(values, values.length); }
+    public int[] copyMasks() { return Arrays.copyOf(masks, masks.length); }
 
     CandidateState copy() {
         return new CandidateState(topology, Arrays.copyOf(values, values.length),

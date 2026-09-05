@@ -94,6 +94,26 @@
     <string name="difficulty_hard">Hard</string>
     <string name="difficulty_custom">Custom</string>
     <string name="difficulty_level_format">Level %1$d</string>
+    <string name="difficulty_guide_button_description">Explain difficulty levels</string>
+    <string name="difficulty_guide_title">Difficulty guide</string>
+    <string name="difficulty_guide_message"><b>Level 1 - Beginner</b>\nLast Digit and obvious Naked Singles.\n\n<b>Level 2 - Beginner</b>\nNaked Singles with fewer clues or a longer, less obvious solve path.\n\n<b>Level 3 - Easy</b>\nA small number of Hidden Singles.\n\n<b>Level 4 - Easy</b>\nHeavier Hidden-Single work, Pointing Candidates, and Claiming Candidates.\n\n<b>Level 5 - Moderate</b>\nNaked Pairs and Hidden Pairs. Repeated locked candidates can also reach this level.\n\n<b>Level 6 - Moderate</b>\nNaked or Hidden Triples and Quads, or sustained pair and locked-candidate work.\n\n<b>Level 7 - Hard</b>\nX-Wing, Skyscraper, and 2-String Kite.\n\n<b>Level 8 - Hard</b>\nSwordfish, XY-Wing, XYZ-Wing, W-Wing, and Simple Coloring. Several Level-7 deductions can also reach this level.\n\n<b>Level 9 - Challenge</b>\nJellyfish, X-Chain, and XY-Chain.\n\n<b>Level 10 - Challenge</b>\nForcing Chains or a forcing proof after the supported logical techniques are exhausted.</string>
+
+    <!-- ### Skill Gym ### -->
+    <string name="gym">Gym</string>
+    <string name="gym_mode_focused">Focused</string>
+    <string name="gym_mode_full">Full</string>
+    <string name="gym_level_format">Level %1$d</string>
+    <string name="gym_stats_row_format">%1$d attempts · %2$d%% correct · %3$d reveals · streak %4$d · best %5$d</string>
+    <string name="gym_drill_stats_format">%1$d%% correct · streak %2$d · best %3$d</string>
+    <string name="gym_reset_stats">Reset Gym statistics</string>
+    <string name="gym_reset_confirmation">Reset statistics for every skill and mode?</string>
+    <string name="gym_hint_description">Show technique hint</string>
+    <string name="gym_action_placement">Placement</string>
+    <string name="gym_action_elimination">Elimination</string>
+    <string name="gym_incorrect">Incorrect</string>
+    <string name="gym_correct">Correct</string>
+    <string name="gym_loading">Loading next drill…</string>
+    <string name="gym_corpus_error">The bundled Gym exercises could not be loaded.</string>
 
     <!--###GameActivity -->
     <string name="Sudoku" translatable="false">Sudoku</string>

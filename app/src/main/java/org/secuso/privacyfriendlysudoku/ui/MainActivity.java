@@ -220,6 +220,12 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
         // Set the difficulty Slider to whatever was chosen the last time
         difficultyBar = findViewById(R.id.difficultyBar);
         difficultyText = (TextView) findViewById(R.id.difficultyText);
+        findViewById(R.id.difficultyHelpButton).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                showDifficultyGuide();
+            }
+        });
         createGameBar = findViewById(R.id.circleButton);
         createGameBar.setButtonDrawable(R.drawable.create_game_src);
         difficultyBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -267,6 +273,14 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
         overridePendingTransition(0, 0);
     }
 
+    private void showDifficultyGuide() {
+        new AlertDialog.Builder(this, R.style.AppTheme_Dialog)
+                .setTitle(R.string.difficulty_guide_title)
+                .setMessage(R.string.difficulty_guide_message)
+                .setPositiveButton(R.string.okay, null)
+                .show();
+    }
+
     public void callFragment(View view){
         /*FragmentManager fm = getSupportFragmentManager();
         DialogWinScreen winScreen = new DialogWinScreen();
@@ -289,6 +303,9 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
                 break;
             case R.id.continueButton:
                 i = new Intent(this, LoadGameActivity.class);
+                break;
+            case R.id.gymButton:
+                i = new Intent(this, GymActivity.class);
                 break;
             case R.id.playButton:
                 GameType gameType = GameType.getValidGameTypes().get(mViewPager.getCurrentItem());
@@ -582,6 +599,12 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
 
             case R.id.nav_dailySudoku_main:
                 intent = new Intent(this, DailySudokuActivity.class);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                break;
+
+            case R.id.nav_gym_main:
+                intent = new Intent(this, GymActivity.class);
                 startActivity(intent);
                 overridePendingTransition(0, 0);
                 break;

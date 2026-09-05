@@ -128,16 +128,31 @@
 
                     <SeekBar
                         android:id="@+id/difficultyBar"
-                        android:layout_width="240dp"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="41dp"
-                        android:layout_marginLeft="41dp"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginLeft="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:layout_marginRight="4dp"
                         android:max="9"
                         android:progress="4"
                         app:layout_constraintBottom_toBottomOf="parent"
-                        app:layout_constraintEnd_toEndOf="parent"
-                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toStartOf="@+id/difficultyHelpButton"
+                        app:layout_constraintStart_toEndOf="@+id/circleButton"
                         app:layout_constraintTop_toTopOf="parent" />
+
+                    <androidx.appcompat.widget.AppCompatImageButton
+                        android:id="@+id/difficultyHelpButton"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/difficulty_guide_button_description"
+                        android:padding="12dp"
+                        app:layout_constraintBottom_toBottomOf="@+id/difficultyBar"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toEndOf="@+id/difficultyBar"
+                        app:layout_constraintTop_toTopOf="@+id/difficultyBar"
+                        app:srcCompat="@drawable/ic_help_outline_black_24dp" />
 
                 </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -182,6 +197,21 @@
                     android:capitalize="none"
                     android:clickable="true"
                     android:background="@drawable/button_standalone"/>
+
+                <Button
+                    android:id="@+id/gymButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="40dp"
+                    android:layout_marginTop="@dimen/activity_vertical_margin"
+                    android:layout_marginRight="40dp"
+                    android:background="@drawable/button_standalone"
+                    android:elevation="10dp"
+                    android:onClick="onClick"
+                    android:text="@string/gym"
+                    android:textColor="?attr/lightestFontColor"
+                    android:textSize="@dimen/text_size"
+                    android:textStyle="normal" />
 
         </LinearLayout>
 

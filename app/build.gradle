@@ -9,6 +9,15 @@ android {
 
     testOptions {
         unitTests.returnDefaultValues = true
+        unitTests.all {
+            systemProperty 'trainingCorpusOutput',
+                    project.findProperty('trainingCorpusOutput') ?: ''
+            systemProperty 'trainingCorpusMaxPuzzles',
+                    project.findProperty('trainingCorpusMaxPuzzles') ?: ''
+            systemProperty 'trainingCorpusInput',
+                    project.findProperty('trainingCorpusInput') ?: ''
+            testLogging.showStandardStreams = project.hasProperty('trainingCorpusOutput')
+        }
     }
 
     defaultConfig {
