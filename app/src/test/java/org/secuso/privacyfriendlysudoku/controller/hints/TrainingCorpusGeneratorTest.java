@@ -173,22 +173,15 @@ public class TrainingCorpusGeneratorTest {
     private TrainingPosition position(String id, HumanTechnique technique, CandidateState state,
                                       int[] solution, GameHint hint) {
         List<TrainingTarget> targets = new ArrayList<>();
-        int focusedMask = 0;
         for(GameHint.Candidate candidate : HumanHintEngine.findTechniqueTargets(
                 state, solution, Symbol.Default, technique)) {
             targets.add(new TrainingTarget(candidate.getRow(), candidate.getCol(),
                     candidate.getValue()));
-            focusedMask |= CandidateState.bit(candidate.getValue());
-        }
-        for(GameHint.HintFrame frame : hint.getFrames()) {
-            for(GameHint.CandidateMark mark : frame.getCandidateMarks()) {
-                focusedMask |= CandidateState.bit(mark.getCandidate().getValue());
-            }
         }
         assertNotNull(hint.getAction());
         return new TrainingPosition(id, technique, state.copyValues(), state.copyMasks(), solution,
                 hint.getAction(),
-                targets, focusedMask);
+                targets);
     }
 
     private boolean complete(Map<HumanTechnique, List<TrainingPosition>> corpus) {

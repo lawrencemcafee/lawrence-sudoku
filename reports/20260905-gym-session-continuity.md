@@ -44,6 +44,16 @@ git diff --check
 
 Local generated test evidence: `app/build/reports/androidTests/connected/uiTest/index.html`, `app/build/reports/tests/testDebugUnitTest/index.html`, and `app/build/reports/lint-results-debug.html`.
 
+## Follow-up installation check
+
+The user reported that the visible app still has Focused mode and lacks a pencil button, and asked whether the separate window during development meant a different app was installed.
+
+A read-only package check confirmed that the installed `com.lawrence.ludoku` APK has exactly the same SHA-256 as the latest debug artifact from this checkout. Package enumeration found only the normal Ludoku app; the temporary test packages are absent. The separate window during testing belonged to the isolated test installation described above.
+
+At that check, the UI discrepancy was unfinished implementation: `GymActivity.java` still exposed the Focused/Full selector, and both `activity_gym_drill.xml` layouts lacked a pencil control. This continuation changed recreation handling only and missed the user's requested work.
+
+The original answers were subsequently recovered and saved in [Gym input decisions](20260905-gym-input-decisions.md). The corrective implementation and installation verification are recorded in [Gym input implementation](20260905-gym-input-implementation.md).
+
 ## Sources
 
 - [ActivityScenario — Android Developers](https://developer.android.com/reference/androidx/test/core/app/ActivityScenario)

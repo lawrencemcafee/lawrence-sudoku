@@ -48,4 +48,4 @@ The debug APK was installed on the Pixelbook Android environment (`Google_Pixelb
 
 APK: `app/build/outputs/apk/debug/pfa-sudoku-debug-v3.2.6.apk`
 
-Follow-up: [Gym session continuity](20260905-gym-session-continuity.md).
+Follow-ups: [Gym session continuity](20260905-gym-session-continuity.md) and [Gym input implementation](20260905-gym-input-implementation.md). The latter supersedes the original Focused/Full mode behavior described above.

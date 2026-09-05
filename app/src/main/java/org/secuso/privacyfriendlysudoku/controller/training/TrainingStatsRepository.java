@@ -18,17 +18,20 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /** Versioned, atomically persisted Gym statistics in the already-backed-up stats directory. */
 public final class TrainingStatsRepository {
     private static final String TAG = "GymStats";
     private static final int MAGIC = 0x4c475953; // LGYS
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
+    // Keep the installed file location; the header controls the format version.
     private static final String FILE_NAME = "gym_stats_v1.bin";
 
     private final AtomicFile file;
-    private final Map<HumanTechnique, EnumMap<TrainingMode, TrainingStats>> records =
+    private final Map<HumanTechnique, TrainingStats> records =
             new EnumMap<>(HumanTechnique.class);
 
     public TrainingStatsRepository(Context context) {
@@ -37,29 +40,29 @@ public final class TrainingStatsRepository {
         load();
     }
 
-    public synchronized TrainingStats get(HumanTechnique technique, TrainingMode mode) {
-        TrainingStats stats = records.get(technique).get(mode);
+    public synchronized TrainingStats get(HumanTechnique technique) {
+        TrainingStats stats = records.get(technique);
         return new TrainingStats(stats.getAttempts(), stats.getCorrect(), stats.getReveals(),
                 stats.getCurrentStreak(), stats.getBestStreak());
     }
 
-    public synchronized void recordAttempt(HumanTechnique technique, TrainingMode mode) {
-        mutable(technique, mode).recordAttempt();
+    public synchronized void recordAttempt(HumanTechnique technique) {
+        records.get(technique).recordAttempt();
         save();
     }
 
-    public synchronized void recordCorrect(HumanTechnique technique, TrainingMode mode) {
-        mutable(technique, mode).recordCorrect();
+    public synchronized void recordCorrect(HumanTechnique technique) {
+        records.get(technique).recordCorrect();
         save();
     }
 
-    public synchronized void recordFailure(HumanTechnique technique, TrainingMode mode) {
-        mutable(technique, mode).recordFailure();
+    public synchronized void recordFailure(HumanTechnique technique) {
+        records.get(technique).recordFailure();
         save();
     }
 
-    public synchronized void recordReveal(HumanTechnique technique, TrainingMode mode) {
-        mutable(technique, mode).recordReveal();
+    public synchronized void recordReveal(HumanTechnique technique) {
+        records.get(technique).recordReveal();
         save();
     }
 
@@ -68,16 +71,10 @@ public final class TrainingStatsRepository {
         file.delete();
     }
 
-    private TrainingStats mutable(HumanTechnique technique, TrainingMode mode) {
-        return records.get(technique).get(mode);
-    }
-
     private void initializeEmpty() {
         records.clear();
         for(HumanTechnique technique : HumanTechnique.values()) {
-            EnumMap<TrainingMode, TrainingStats> modes = new EnumMap<>(TrainingMode.class);
-            for(TrainingMode mode : TrainingMode.values()) modes.put(mode, new TrainingStats());
-            records.put(technique, modes);
+            records.put(technique, new TrainingStats());
         }
     }
 
@@ -85,16 +82,27 @@ public final class TrainingStatsRepository {
         if(!file.getBaseFile().isFile()) return;
         try(DataInputStream input = new DataInputStream(new BufferedInputStream(
                 file.openRead()))) {
-            if(input.readInt() != MAGIC || input.readInt() != VERSION) {
+            if(input.readInt() != MAGIC) {
                 throw new IOException("Unsupported Gym statistics file.");
             }
+            int version = input.readInt();
+            if(version != 1 && version != VERSION) {
+                throw new IOException("Unsupported Gym statistics version: " + version);
+            }
             int count = input.readInt();
-            if(count != HumanTechnique.values().length * TrainingMode.values().length) {
+            if(count != HumanTechnique.values().length * (version == 1 ? 2 : 1)) {
                 throw new IOException("Unexpected Gym statistics record count.");
             }
+            Set<String> seen = new HashSet<>();
             for(int index = 0; index < count; index++) {
                 HumanTechnique technique = HumanTechnique.valueOf(input.readUTF());
-                TrainingMode mode = TrainingMode.valueOf(input.readUTF());
+                String legacyMode = version == 1 ? input.readUTF() : "FULL";
+                if(!legacyMode.equals("FULL") && !legacyMode.equals("FOCUSED")) {
+                    throw new IOException("Unrecognized legacy Gym mode.");
+                }
+                if(!seen.add(technique.name() + ":" + legacyMode)) {
+                    throw new IOException("Duplicate Gym statistics record.");
+                }
                 int attempts = nonnegative(input.readInt());
                 int correct = nonnegative(input.readInt());
                 int reveals = nonnegative(input.readInt());
@@ -103,9 +111,14 @@ public final class TrainingStatsRepository {
                 if(correct > attempts || current > best) {
                     throw new IOException("Inconsistent Gym statistics.");
                 }
-                records.get(technique).put(mode,
-                        new TrainingStats(attempts, correct, reveals, current, best));
+                // User chose to retain Full history only, including its exact streaks.
+                if(legacyMode.equals("FULL")) {
+                    records.put(technique,
+                            new TrainingStats(attempts, correct, reveals, current, best));
+                }
             }
+            if(input.read() != -1) throw new IOException("Trailing Gym statistics data.");
+            if(version == 1) save();
         } catch(IOException | IllegalArgumentException failure) {
             Log.e(TAG, "Could not read Gym statistics; starting with empty statistics.", failure);
             initializeEmpty();
@@ -124,18 +137,15 @@ public final class TrainingStatsRepository {
             DataOutputStream output = new DataOutputStream(new BufferedOutputStream(stream));
             output.writeInt(MAGIC);
             output.writeInt(VERSION);
-            output.writeInt(HumanTechnique.values().length * TrainingMode.values().length);
+            output.writeInt(HumanTechnique.values().length);
             for(HumanTechnique technique : HumanTechnique.values()) {
-                for(TrainingMode mode : TrainingMode.values()) {
-                    TrainingStats stats = mutable(technique, mode);
-                    output.writeUTF(technique.name());
-                    output.writeUTF(mode.name());
-                    output.writeInt(stats.getAttempts());
-                    output.writeInt(stats.getCorrect());
-                    output.writeInt(stats.getReveals());
-                    output.writeInt(stats.getCurrentStreak());
-                    output.writeInt(stats.getBestStreak());
-                }
+                TrainingStats stats = records.get(technique);
+                output.writeUTF(technique.name());
+                output.writeInt(stats.getAttempts());
+                output.writeInt(stats.getCorrect());
+                output.writeInt(stats.getReveals());
+                output.writeInt(stats.getCurrentStreak());
+                output.writeInt(stats.getBestStreak());
             }
             output.flush();
             file.finishWrite(stream);

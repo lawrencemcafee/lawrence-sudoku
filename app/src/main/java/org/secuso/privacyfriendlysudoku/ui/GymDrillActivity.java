@@ -6,7 +6,6 @@ package org.secuso.privacyfriendlysudoku.ui;
 
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
-import android.graphics.Color;
 import android.graphics.Point;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -29,7 +28,6 @@ import org.secuso.privacyfriendlysudoku.controller.hints.HumanHintEngine;
 import org.secuso.privacyfriendlysudoku.controller.hints.HumanTechnique;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingCorpus;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingCorpusProvider;
-import org.secuso.privacyfriendlysudoku.controller.training.TrainingMode;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingPosition;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingSession;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStats;
@@ -40,8 +38,11 @@ import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.ui.view.HumanHintDialog;
 import org.secuso.privacyfriendlysudoku.ui.view.SudokuFieldLayout;
 import org.secuso.privacyfriendlysudoku.ui.view.SudokuKeyboardLayout;
+import org.secuso.privacyfriendlysudoku.ui.view.SudokuSpecialButtonLayout;
+import org.secuso.privacyfriendlysudoku.ui.view.SudokuButtonType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -51,7 +52,6 @@ import java.util.concurrent.Executors;
 /** Endless isolated practice for one human Sudoku technique. */
 public class GymDrillActivity extends BaseActivity {
     public static final String EXTRA_TECHNIQUE = "gymTechnique";
-    public static final String EXTRA_MODE = "gymMode";
 
     private static final String STATE_SEED = "gymSeed";
     private static final String STATE_SEQUENCE = "gymSequence";
@@ -62,6 +62,7 @@ public class GymDrillActivity extends BaseActivity {
     private static final String STATE_ROW = "row";
     private static final String STATE_COL = "col";
     private static final String STATE_VALUE = "value";
+    private static final String STATE_NOTES = "notes";
     private static final String STATE_HINT_OPEN = "hintOpen";
     private static final String STATE_HINT_PAGE = "hintPage";
     private static final long NEXT_DELAY_MS = 600L;
@@ -72,7 +73,6 @@ public class GymDrillActivity extends BaseActivity {
     private SharedPreferences settings;
     private TrainingStatsRepository statsRepository;
     private HumanTechnique technique;
-    private TrainingMode mode;
     private TrainingSession session;
     private long sessionSeed;
     private long sequence;
@@ -92,6 +92,7 @@ public class GymDrillActivity extends BaseActivity {
     private GameController gameController;
     private SudokuFieldLayout field;
     private SudokuKeyboardLayout keyboard;
+    private SudokuSpecialButtonLayout specialButtons;
     private TextView actionView;
     private TextView statsView;
     private ImageButton hintButton;
@@ -106,7 +107,6 @@ public class GymDrillActivity extends BaseActivity {
 
         try {
             technique = HumanTechnique.valueOf(getIntent().getStringExtra(EXTRA_TECHNIQUE));
-            mode = TrainingMode.valueOf(getIntent().getStringExtra(EXTRA_MODE));
         } catch(IllegalArgumentException | NullPointerException failure) {
             finish();
             return;
@@ -125,23 +125,18 @@ public class GymDrillActivity extends BaseActivity {
 
         setContentView(R.layout.activity_gym_drill);
         Toolbar toolbar = findViewById(R.id.toolbar);
-        toolbar.setSubtitleTextColor(Color.WHITE);
         setSupportActionBar(toolbar);
         ActionBar actionBar = getSupportActionBar();
         if(actionBar != null) {
             actionBar.setTitle(technique.getTitle());
-            actionBar.setSubtitle(mode == TrainingMode.FOCUSED
-                    ? R.string.gym_mode_focused : R.string.gym_mode_full);
             actionBar.setDisplayHomeAsUpEnabled(true);
         }
 
         field = findViewById(R.id.sudokuLayout);
         keyboard = findViewById(R.id.sudokuKeyboardLayout);
+        specialButtons = findViewById(R.id.sudokuSpecialLayout);
         actionView = findViewById(R.id.gymDrillAction);
         statsView = findViewById(R.id.gymDrillStats);
-        hintButton = findViewById(R.id.gymHintButton);
-        hintButton.setEnabled(false);
-        hintButton.setOnClickListener(view -> showHint());
         statsRepository = new TrainingStatsRepository(this);
         updateStats();
         showLoading();
@@ -194,6 +189,7 @@ public class GymDrillActivity extends BaseActivity {
             state.putInt(STATE_ROW, gameController.getSelectedRow());
             state.putInt(STATE_COL, gameController.getSelectedCol());
             state.putInt(STATE_VALUE, gameController.getSelectedValue());
+            state.putBoolean(STATE_NOTES, gameController.getNoteStatus());
         }
         if(hintDialog != null && hintDialog.isShowing()) {
             state.putBoolean(STATE_HINT_OPEN, true);
@@ -204,6 +200,8 @@ public class GymDrillActivity extends BaseActivity {
 
     private void restoreInteraction() {
         if(current == null || pendingInteraction == null) return;
+        gameController.setNoteStatus(pendingInteraction.getBoolean(STATE_NOTES,
+                gameController.getNoteStatus()));
         gameController.resetSelects();
         int value = pendingInteraction.getInt(STATE_VALUE);
         int row = pendingInteraction.getInt(STATE_ROW, -1);
@@ -279,7 +277,7 @@ public class GymDrillActivity extends BaseActivity {
         validTargets.clear();
         validTargets.addAll(prepared.position.getTargets());
 
-        boolean[][] notes = toNotes(prepared.position.displayMasks(mode));
+        boolean[][] notes = toNotes(prepared.position.getCandidateMasks());
         GameInfoContainer game = new GameInfoContainer(0,
                 DifficultyLevel.of(technique.getBaseLevel()), GameType.Default_9x9,
                 prepared.position.getValues(), null, notes);
@@ -298,6 +296,20 @@ public class GymDrillActivity extends BaseActivity {
                     ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL;
             keyboard.setKeyBoard(9, display.x, display.y, orientation);
             keyboard.setOnValueClickListener(this::submitValue);
+            specialButtons.setButtons(display.x, gameController, keyboard, orientation, this,
+                    Arrays.asList(SudokuButtonType.Hint, SudokuButtonType.NoteToggle));
+            specialButtons.setOnButtonClickListener(type -> {
+                if(current == null || completionPending) return true;
+                if(type == SudokuButtonType.Hint) {
+                    showHint();
+                } else if(type == SudokuButtonType.NoteToggle) {
+                    gameController.setNoteStatus(!gameController.getNoteStatus());
+                    gameController.notifyHighlightChangedListeners();
+                }
+                return true;
+            });
+            hintButton = specialButtons.getButton(SudokuButtonType.Hint);
+            hintButton.setContentDescription(getString(R.string.gym_hint_description));
             keyboardReady = true;
         } else {
             gameController.loadLevel(game);
@@ -306,10 +318,11 @@ public class GymDrillActivity extends BaseActivity {
         field.setSymbols(prepared.symbols);
         keyboard.setSymbols(prepared.symbols);
 
+        gameController.setNoteStatus(prepared.position.getAction() == GameHint.Action.REMOVE_CANDIDATES);
         gameController.resetSelects();
         gameController.notifyHighlightChangedListeners();
         keyboard.setButtonsEnabled(true);
-        hintButton.setEnabled(true);
+        specialButtons.setButtonsEnabled(true);
         actionView.setText(prepared.position.getAction() == GameHint.Action.PLACE_VALUE
                 ? R.string.gym_action_placement : R.string.gym_action_elimination);
         updateStats();
@@ -346,6 +359,15 @@ public class GymDrillActivity extends BaseActivity {
     private void submitAnswer(int row, int col, int value) {
         TrainingTarget answer = new TrainingTarget(row, col, value);
         beginAttempt();
+        GameHint.Action inputAction = gameController.getNoteStatus()
+                ? GameHint.Action.REMOVE_CANDIDATES : GameHint.Action.PLACE_VALUE;
+        if(inputAction != current.position.getAction()) {
+            markFailure();
+            field.showCandidateFeedback(row, col, value, false);
+            actionView.setText(current.position.getAction() == GameHint.Action.REMOVE_CANDIDATES
+                    ? R.string.gym_use_notes : R.string.gym_use_entry);
+            return;
+        }
         if(!validTargets.contains(answer)) {
             markFailure();
             field.showCandidateFeedback(row, col, value, false);
@@ -366,14 +388,14 @@ public class GymDrillActivity extends BaseActivity {
     private void beginAttempt() {
         if(attemptStarted) return;
         attemptStarted = true;
-        statsRepository.recordAttempt(technique, mode);
+        statsRepository.recordAttempt(technique);
         updateStats();
     }
 
     private void markFailure() {
         if(!eligible) return;
         eligible = false;
-        statsRepository.recordFailure(technique, mode);
+        statsRepository.recordFailure(technique);
         updateStats();
     }
 
@@ -391,7 +413,7 @@ public class GymDrillActivity extends BaseActivity {
                 beginAttempt();
                 if(!revealRecorded) {
                     revealRecorded = true;
-                    statsRepository.recordReveal(technique, mode);
+                    statsRepository.recordReveal(technique);
                 }
                 markFailure();
                 updateStats();
@@ -409,11 +431,11 @@ public class GymDrillActivity extends BaseActivity {
     private void completeCurrent() {
         if(completionPending) return;
         completionPending = true;
-        if(eligible) statsRepository.recordCorrect(technique, mode);
+        if(eligible) statsRepository.recordCorrect(technique);
         updateStats();
         actionView.setText(R.string.gym_correct);
         keyboard.setButtonsEnabled(false);
-        hintButton.setEnabled(false);
+        specialButtons.setButtonsEnabled(false);
         mHandler.postDelayed(this::advance, NEXT_DELAY_MS);
     }
 
@@ -437,7 +459,7 @@ public class GymDrillActivity extends BaseActivity {
 
     private void showLoading() {
         actionView.setText(R.string.gym_loading);
-        hintButton.setEnabled(false);
+        specialButtons.setButtonsEnabled(false);
         if(keyboardReady) keyboard.setButtonsEnabled(false);
     }
 
@@ -448,7 +470,7 @@ public class GymDrillActivity extends BaseActivity {
     }
 
     private void updateStats() {
-        TrainingStats stats = statsRepository.get(technique, mode);
+        TrainingStats stats = statsRepository.get(technique);
         statsView.setText(getString(R.string.gym_drill_stats_format,
                 stats.getAccuracyPercent(), stats.getCurrentStreak(), stats.getBestStreak()));
     }

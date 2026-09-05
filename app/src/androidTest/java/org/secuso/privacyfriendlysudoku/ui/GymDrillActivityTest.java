@@ -8,10 +8,12 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.RadioGroup;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -26,11 +28,14 @@ import org.secuso.privacyfriendlysudoku.controller.Symbol;
 import org.secuso.privacyfriendlysudoku.controller.hints.GameHint;
 import org.secuso.privacyfriendlysudoku.controller.hints.HumanHintEngine;
 import org.secuso.privacyfriendlysudoku.controller.hints.HumanTechnique;
-import org.secuso.privacyfriendlysudoku.controller.training.TrainingMode;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStats;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStatsRepository;
+import org.secuso.privacyfriendlysudoku.controller.training.TrainingPosition;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.ui.view.SudokuButton;
+import org.secuso.privacyfriendlysudoku.ui.view.SudokuButtonType;
+import org.secuso.privacyfriendlysudoku.ui.view.SudokuSpecialButton;
+import org.secuso.privacyfriendlysudoku.ui.view.SudokuSpecialButtonLayout;
 import org.secuso.privacyfriendlysudoku.ui.view.SudokuFieldLayout;
 import org.secuso.privacyfriendlysudoku.ui.view.HumanHintDialog;
 
@@ -108,7 +113,7 @@ public class GymDrillActivityTest {
             awaitReady(scenario);
             scenario.onActivity(activity -> {
                 pressNumber(activity, answer.get().getValue());
-                assertFalse(activity.findViewById(R.id.gymHintButton).isEnabled());
+                assertFalse(hintButton(activity).isEnabled());
             });
             awaitReady(scenario);
             assertStats(HumanTechnique.LAST_DIGIT, 1, 0, 0, 0);
@@ -118,7 +123,7 @@ public class GymDrillActivityTest {
     @Test
     public void hintPageSurvivesRepeatedRecreationWithoutExtraReveals() {
         try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.NAKED_PAIR)) {
-            scenario.onActivity(activity -> activity.findViewById(R.id.gymHintButton).performClick());
+            scenario.onActivity(activity -> hintButton(activity).performClick());
             scenario.onActivity(activity -> hintWindow(activity)
                     .getButton(DialogInterface.BUTTON_POSITIVE).performClick());
             for(int iteration = 0; iteration < 2; iteration++) {
@@ -141,7 +146,7 @@ public class GymDrillActivityTest {
     @Test
     public void dismissedHintDoesNotReopenAfterRecreation() {
         try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.LAST_DIGIT)) {
-            scenario.onActivity(activity -> activity.findViewById(R.id.gymHintButton).performClick());
+            scenario.onActivity(activity -> hintButton(activity).performClick());
             scenario.recreate();
             awaitReady(scenario);
             scenario.onActivity(activity -> {
@@ -174,16 +179,152 @@ public class GymDrillActivityTest {
                 tapCell(activity, answer.getRow(), answer.getCol());
             });
             assertStats(HumanTechnique.LAST_DIGIT, 2, 2, 0, 2);
-            TrainingStats otherMode = new TrainingStatsRepository(context)
-                    .get(HumanTechnique.LAST_DIGIT, TrainingMode.FOCUSED);
-            assertEquals(0, otherMode.getAttempts());
         }
+    }
+
+    @Test
+    public void catalogHasNoModeSelector() {
+        context.getSharedPreferences("gym", Context.MODE_PRIVATE).edit()
+                .putString("mode", "FOCUSED").commit();
+        try(ActivityScenario<GymActivity> scenario = ActivityScenario.launch(GymActivity.class)) {
+            scenario.onActivity(activity -> assertFalse(containsModeSelector(
+                    activity.findViewById(R.id.main_content))));
+        }
+    }
+
+    @Test
+    public void nakedPairShowsAllCandidatesAndUsesTheFullGameControlLayout() {
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.NAKED_PAIR)) {
+            scenario.onActivity(activity -> {
+                TrainingPosition position = (TrainingPosition) privateField(
+                        privateField(activity, "current"), "position");
+                int[] expectedMasks = position.getCandidateMasks();
+                for(int cell = 0; cell < 81; cell++) {
+                    boolean[] notes = controller(activity).getGameCell(cell / 9, cell % 9).getNotes();
+                    for(int digit = 0; digit < 9; digit++) {
+                        assertEquals((expectedMasks[cell] & (1 << digit)) != 0, notes[digit]);
+                    }
+                }
+                assertTrue(controller(activity).getNoteStatus());
+                assertTrue(specialButton(activity, SudokuButtonType.NoteToggle).isSelected());
+                SudokuSpecialButtonLayout controls = activity.findViewById(R.id.sudokuSpecialLayout);
+                assertEquals(SudokuButtonType.getSpecialButtons().size(), controls.getChildCount());
+                for(SudokuButtonType type : SudokuButtonType.getSpecialButtons()) {
+                    assertEquals(type == SudokuButtonType.Hint || type == SudokuButtonType.NoteToggle
+                                    ? View.VISIBLE : View.INVISIBLE,
+                            controls.getButton(type).getVisibility());
+                }
+                int[] board = location(activity.findViewById(R.id.sudokuLayout));
+                int[] keys = location(activity.findViewById(R.id.sudokuKeyboardLayout));
+                int[] special = location(controls);
+                if(activity.getResources().getConfiguration().orientation
+                        == Configuration.ORIENTATION_LANDSCAPE) {
+                    assertTrue(special[0] + controls.getWidth() <= board[0]);
+                    assertTrue(board[0] < keys[0]);
+                } else {
+                    assertTrue(board[1] < keys[1]);
+                    assertTrue(keys[1] < special[1]);
+                }
+            });
+        }
+    }
+
+    @Test
+    public void nakedPairCandidateRemovalWorksWithBothInputOrders() {
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.NAKED_PAIR)) {
+            for(boolean numberFirst : new boolean[] {false, true}) {
+                scenario.onActivity(activity -> {
+                    GameHint.Candidate target = answer(activity, HumanTechnique.NAKED_PAIR)
+                            .getEliminations().get(0);
+                    assertTrue(controller(activity).getNoteStatus());
+                    if(numberFirst) {
+                        pressNumber(activity, target.getValue());
+                        tapCell(activity, target.getRow(), target.getCol());
+                    } else {
+                        tapCell(activity, target.getRow(), target.getCol());
+                        pressNumber(activity, target.getValue());
+                    }
+                    assertFalse(controller(activity).getGameCell(target.getRow(), target.getCol())
+                            .getNotes()[target.getValue() - 1]);
+                    assertEquals(0, controller(activity).getValue(target.getRow(), target.getCol()));
+                    assertFalse(hintButton(activity).isEnabled());
+                });
+                awaitReady(scenario);
+            }
+            assertStats(HumanTechnique.NAKED_PAIR, 2, 2, 0, 2);
+        }
+    }
+
+    @Test
+    public void wrongInputModeIsRejectedAndPencilStateSurvivesRecreation() {
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.NAKED_PAIR)) {
+            scenario.onActivity(activity ->
+                    specialButton(activity, SudokuButtonType.NoteToggle).performClick());
+            scenario.recreate();
+            awaitReady(scenario);
+            scenario.onActivity(activity -> {
+                assertFalse(controller(activity).getNoteStatus());
+                assertFalse(specialButton(activity, SudokuButtonType.NoteToggle).isSelected());
+                GameHint.Candidate target = answer(activity, HumanTechnique.NAKED_PAIR)
+                        .getEliminations().get(0);
+                tapCell(activity, target.getRow(), target.getCol());
+                pressNumber(activity, target.getValue());
+                assertEquals(0, controller(activity).getValue(target.getRow(), target.getCol()));
+                assertTrue(controller(activity).getGameCell(target.getRow(), target.getCol())
+                        .getNotes()[target.getValue() - 1]);
+                assertTrue(hintButton(activity).isEnabled());
+                specialButton(activity, SudokuButtonType.NoteToggle).performClick();
+                pressNumber(activity, target.getValue());
+                assertFalse(hintButton(activity).isEnabled());
+            });
+            awaitReady(scenario);
+            scenario.onActivity(activity -> assertTrue(controller(activity).getNoteStatus()));
+            assertStats(HumanTechnique.NAKED_PAIR, 1, 0, 0, 0);
+        }
+    }
+
+    @Test
+    public void placementStartsInEntryModeAndRejectsNotes() {
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.LAST_DIGIT)) {
+            scenario.onActivity(activity -> {
+                assertFalse(controller(activity).getNoteStatus());
+                GameHint target = answer(activity);
+                specialButton(activity, SudokuButtonType.NoteToggle).performClick();
+                tapCell(activity, target.getRow(), target.getCol());
+                pressNumber(activity, target.getValue());
+                assertTrue(hintButton(activity).isEnabled());
+                assertEquals(0, controller(activity).getValue(target.getRow(), target.getCol()));
+                assertTrue(controller(activity).getGameCell(target.getRow(), target.getCol())
+                        .getNotes()[target.getValue() - 1]);
+                specialButton(activity, SudokuButtonType.NoteToggle).performClick();
+                pressNumber(activity, target.getValue());
+                assertEquals(target.getValue(), controller(activity)
+                        .getValue(target.getRow(), target.getCol()));
+            });
+            assertStats(HumanTechnique.LAST_DIGIT, 1, 0, 0, 0);
+        }
+    }
+
+    private static boolean containsModeSelector(View view) {
+        if(view instanceof RadioGroup) return true;
+        if(view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for(int index = 0; index < group.getChildCount(); index++) {
+                if(containsModeSelector(group.getChildAt(index))) return true;
+            }
+        }
+        return false;
+    }
+
+    private static int[] location(View view) {
+        int[] result = new int[2];
+        view.getLocationInWindow(result);
+        return result;
     }
 
     private ActivityScenario<GymDrillActivity> launch(HumanTechnique technique) {
         Intent intent = new Intent(context, GymDrillActivity.class)
-                .putExtra(GymDrillActivity.EXTRA_TECHNIQUE, technique.name())
-                .putExtra(GymDrillActivity.EXTRA_MODE, TrainingMode.FULL.name());
+                .putExtra(GymDrillActivity.EXTRA_TECHNIQUE, technique.name());
         ActivityScenario<GymDrillActivity> scenario = ActivityScenario.launch(intent);
         awaitReady(scenario);
         return scenario;
@@ -195,7 +336,7 @@ public class GymDrillActivityTest {
         do {
             scenario.onActivity(activity -> {
                 SudokuFieldLayout board = activity.findViewById(R.id.sudokuLayout);
-                ready.set(activity.findViewById(R.id.gymHintButton).isEnabled()
+                ready.set(hintButton(activity) != null && hintButton(activity).isEnabled()
                         && board.gamecells != null && board.gamecells[0][0].getWidth() > 0);
             });
             if(ready.get()) return;
@@ -206,11 +347,20 @@ public class GymDrillActivityTest {
 
     private void assertStats(HumanTechnique technique, int attempts, int correct,
                              int reveals, int streak) {
-        TrainingStats stats = new TrainingStatsRepository(context).get(technique, TrainingMode.FULL);
+        TrainingStats stats = new TrainingStatsRepository(context).get(technique);
         assertEquals(attempts, stats.getAttempts());
         assertEquals(correct, stats.getCorrect());
         assertEquals(reveals, stats.getReveals());
         assertEquals(streak, stats.getCurrentStreak());
+    }
+
+    private static SudokuSpecialButton hintButton(GymDrillActivity activity) {
+        return specialButton(activity, SudokuButtonType.Hint);
+    }
+
+    private static SudokuSpecialButton specialButton(GymDrillActivity activity, SudokuButtonType type) {
+        SudokuSpecialButtonLayout controls = activity.findViewById(R.id.sudokuSpecialLayout);
+        return controls.getButton(type);
     }
 
     private static GameController controller(GymDrillActivity activity) {
@@ -243,6 +393,10 @@ public class GymDrillActivityTest {
     }
 
     private static GameHint answer(GymDrillActivity activity) {
+        return answer(activity, HumanTechnique.LAST_DIGIT);
+    }
+
+    private static GameHint answer(GymDrillActivity activity, HumanTechnique technique) {
         GameController controller = controller(activity);
         int[] masks = new int[81];
         for(int cell = 0; cell < masks.length; cell++) {
@@ -252,7 +406,7 @@ public class GymDrillActivityTest {
             }
         }
         GameHint hint = HumanHintEngine.findTechnique(GameType.Default_9x9, values(controller),
-                masks, controller.solve(), Symbol.Default, HumanTechnique.LAST_DIGIT);
+                masks, controller.solve(), Symbol.Default, technique);
         assertNotNull(hint);
         return hint;
     }

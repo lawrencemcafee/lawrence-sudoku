@@ -52,7 +52,6 @@ public final class TrainingCanonicalizer {
         for(int value : values) result.append((char) (value == 0 ? 0 : digits[value]));
         for(int mask : masks) result.append((char) remapMask(mask, digits));
         result.append((char) position.getAction().ordinal());
-        result.append((char) remapMask(position.getFocusedValueMask(), digits));
 
         List<Integer> targets = new ArrayList<>();
         for(TrainingTarget target : position.getTargets()) {

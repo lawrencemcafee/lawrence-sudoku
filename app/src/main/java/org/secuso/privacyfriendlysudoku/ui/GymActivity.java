@@ -6,7 +6,6 @@ package org.secuso.privacyfriendlysudoku.ui;
 
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -15,7 +14,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ListView;
-import android.widget.RadioGroup;
 import android.widget.TextView;
 
 import androidx.appcompat.app.ActionBar;
@@ -23,7 +21,6 @@ import androidx.appcompat.widget.Toolbar;
 
 import org.secuso.privacyfriendlysudoku.R;
 import org.secuso.privacyfriendlysudoku.controller.hints.HumanTechnique;
-import org.secuso.privacyfriendlysudoku.controller.training.TrainingMode;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStats;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStatsRepository;
 
@@ -32,12 +29,7 @@ import java.util.List;
 
 /** Catalog for isolated human-technique drills. */
 public class GymActivity extends BaseActivity {
-    private static final String PREFS_NAME = "gym";
-    private static final String PREF_MODE = "mode";
-
-    private SharedPreferences preferences;
     private TrainingStatsRepository statsRepository;
-    private TrainingMode mode;
     private SkillAdapter adapter;
 
     @Override
@@ -53,23 +45,7 @@ public class GymActivity extends BaseActivity {
             actionBar.setDisplayHomeAsUpEnabled(true);
         }
 
-        preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         statsRepository = new TrainingStatsRepository(this);
-        try {
-            mode = TrainingMode.valueOf(preferences.getString(PREF_MODE,
-                    TrainingMode.FOCUSED.name()));
-        } catch(IllegalArgumentException | NullPointerException failure) {
-            mode = TrainingMode.FOCUSED;
-        }
-
-        RadioGroup modeToggle = findViewById(R.id.gymModeToggle);
-        modeToggle.check(mode == TrainingMode.FOCUSED
-                ? R.id.gymModeFocused : R.id.gymModeFull);
-        modeToggle.setOnCheckedChangeListener((group, checkedId) -> {
-            mode = checkedId == R.id.gymModeFull ? TrainingMode.FULL : TrainingMode.FOCUSED;
-            preferences.edit().putString(PREF_MODE, mode.name()).apply();
-            adapter.notifyDataSetChanged();
-        });
 
         adapter = new SkillAdapter();
         ListView list = findViewById(R.id.gymSkillList);
@@ -79,7 +55,6 @@ public class GymActivity extends BaseActivity {
             if(technique == null) return;
             Intent intent = new Intent(this, GymDrillActivity.class);
             intent.putExtra(GymDrillActivity.EXTRA_TECHNIQUE, technique.name());
-            intent.putExtra(GymDrillActivity.EXTRA_MODE, mode.name());
             startActivity(intent);
         });
     }
@@ -166,7 +141,7 @@ public class GymActivity extends BaseActivity {
             TextView title = row.findViewById(R.id.gymSkillTitle);
             TextView stats = row.findViewById(R.id.gymSkillStats);
             title.setText(entry.technique.getTitle());
-            TrainingStats record = statsRepository.get(entry.technique, mode);
+            TrainingStats record = statsRepository.get(entry.technique);
             stats.setText(getString(R.string.gym_stats_row_format, record.getAttempts(),
                     record.getAccuracyPercent(), record.getReveals(), record.getCurrentStreak(),
                     record.getBestStreak()));

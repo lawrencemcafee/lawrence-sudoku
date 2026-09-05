@@ -24,11 +24,10 @@ public final class TrainingPosition {
     private final int[] solution;
     private final GameHint.Action action;
     private final List<TrainingTarget> targets;
-    private final int focusedValueMask;
 
     public TrainingPosition(String id, HumanTechnique technique, int[] values,
                             int[] candidateMasks, int[] solution, GameHint.Action action,
-                            List<TrainingTarget> targets, int focusedValueMask) {
+                            List<TrainingTarget> targets) {
         if(id == null || id.isEmpty() || technique == null || action == null) {
             throw new IllegalArgumentException("Training position identity is incomplete.");
         }
@@ -49,7 +48,6 @@ public final class TrainingPosition {
         List<TrainingTarget> ordered = new ArrayList<>(targets);
         Collections.sort(ordered);
         this.targets = Collections.unmodifiableList(ordered);
-        this.focusedValueMask = focusedValueMask;
     }
 
     public String getId() { return id; }
@@ -59,16 +57,4 @@ public final class TrainingPosition {
     public int[] getSolution() { return Arrays.copyOf(solution, solution.length); }
     public GameHint.Action getAction() { return action; }
     public List<TrainingTarget> getTargets() { return targets; }
-    public int getFocusedValueMask() { return focusedValueMask; }
-
-    public int[] displayMasks(TrainingMode mode) {
-        int[] result = getCandidateMasks();
-        if(mode == TrainingMode.FOCUSED) {
-            for(int index = 0; index < result.length; index++) {
-                result[index] &= focusedValueMask;
-            }
-        }
-        return result;
-    }
-
 }

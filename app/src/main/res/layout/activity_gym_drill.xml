@@ -1,86 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main_content"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorPrimary"
         android:theme="@style/ToolbarStyle"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
         app:popupTheme="@style/AppTheme.PopupOverlay" />
 
     <LinearLayout
         android:id="@+id/gymDrillHeader"
-        android:layout_width="0dp"
-        android:layout_height="56dp"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:paddingStart="16dp"
-        android:paddingEnd="8dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/toolbar">
+        android:paddingEnd="16dp">
 
-        <LinearLayout
-            android:layout_width="0dp"
+        <TextView
+            android:id="@+id/gymDrillAction"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/gymDrillAction"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="?android:attr/textColorPrimary"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/gymDrillStats"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="?android:attr/textColorSecondary"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/gymHintButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/gym_hint_description"
-            android:padding="10dp"
-            android:scaleType="fitCenter"
-            app:srcCompat="@drawable/ic_lightbulb_outline_black_48dp" />
+        <TextView
+            android:id="@+id/gymDrillStats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp" />
     </LinearLayout>
 
-    <org.secuso.privacyfriendlysudoku.ui.view.SudokuFieldLayout
-        android:id="@+id/sudokuLayout"
-        android:layout_width="0dp"
+    <!-- Use the full game's arrangement. The include ID replaces its root main_content ID. -->
+    <include
+        android:id="@+id/gymGameContent"
+        layout="@layout/content_game_view"
+        android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center"
-        app:layout_constraintBottom_toTopOf="@id/sudokuKeyboardLayout"
-        app:layout_constraintDimensionRatio="1:1"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/gymDrillHeader" />
-
-    <org.secuso.privacyfriendlysudoku.ui.view.SudokuKeyboardLayout
-        android:id="@+id/sudokuKeyboardLayout"
-        android:layout_width="0dp"
-        android:layout_height="112dp"
-        android:orientation="vertical"
-        android:weightSum="2"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-</androidx.constraintlayout.widget.ConstraintLayout>
+        android:layout_marginTop="0dp"
+        android:layout_weight="1"
+        tools:ignore="DuplicateIncludedIds" />
+</LinearLayout>

@@ -52,19 +52,17 @@ public class TrainingCorpusTest {
     }
 
     @Test
-    public void focusedModeOnlyFiltersCandidateValues() {
+    public void candidateSnapshotsAreCompleteAndCannotBeMutatedByTheView() {
         for(HumanTechnique technique : HumanTechnique.values()) {
             TrainingPosition position = corpus.get(technique).get(0);
-            assertArrayEquals(position.getCandidateMasks(), position.displayMasks(TrainingMode.FULL));
-            int[] focused = position.displayMasks(TrainingMode.FOCUSED);
-            int[] full = position.getCandidateMasks();
-            for(int index = 0; index < full.length; index++) {
-                assertEquals(full[index] & position.getFocusedValueMask(), focused[index]);
-            }
+            int[] masks = position.getCandidateMasks();
             for(TrainingTarget target : position.getTargets()) {
                 int index = target.getRow() * TrainingPosition.SIZE + target.getCol();
-                assertTrue((focused[index] & (1 << (target.getValue() - 1))) != 0);
+                assertTrue((masks[index] & (1 << (target.getValue() - 1))) != 0);
             }
+            int[] altered = position.getCandidateMasks();
+            java.util.Arrays.fill(altered, 0);
+            assertArrayEquals(masks, position.getCandidateMasks());
         }
     }
 

@@ -100,16 +100,18 @@
 
     <!-- ### Skill Gym ### -->
     <string name="gym">Gym</string>
-    <string name="gym_mode_focused">Focused</string>
-    <string name="gym_mode_full">Full</string>
     <string name="gym_level_format">Level %1$d</string>
     <string name="gym_stats_row_format">%1$d attempts · %2$d%% correct · %3$d reveals · streak %4$d · best %5$d</string>
     <string name="gym_drill_stats_format">%1$d%% correct · streak %2$d · best %3$d</string>
     <string name="gym_reset_stats">Reset Gym statistics</string>
-    <string name="gym_reset_confirmation">Reset statistics for every skill and mode?</string>
+    <string name="gym_reset_confirmation">Reset statistics for every skill?</string>
     <string name="gym_hint_description">Show technique hint</string>
     <string name="gym_action_placement">Placement</string>
     <string name="gym_action_elimination">Elimination</string>
+    <string name="gym_use_notes">Turn notes on to remove a candidate.</string>
+    <string name="gym_use_entry">Turn notes off to enter a value.</string>
+    <string name="note_mode_on">Notes on. Tap to enter values.</string>
+    <string name="note_mode_off">Notes off. Tap to edit candidates.</string>
     <string name="gym_incorrect">Incorrect</string>
     <string name="gym_correct">Correct</string>
     <string name="gym_loading">Loading next drill…</string>

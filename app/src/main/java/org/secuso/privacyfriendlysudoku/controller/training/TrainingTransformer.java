@@ -45,7 +45,7 @@ public final class TrainingTransformer {
             targets.add(new TrainingTarget(row, col, digitMap[target.getValue() - 1]));
         }
         return new TrainingPosition(source.getId(), source.getTechnique(), values, masks, solution,
-                source.getAction(), targets, remapMask(source.getFocusedValueMask(), digitMap));
+                source.getAction(), targets);
     }
 
     /** Transform every valid target along with the candidate-state snapshot. */

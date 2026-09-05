@@ -4,7 +4,7 @@
  */
 package org.secuso.privacyfriendlysudoku.controller.training;
 
-/** Persistent drill-level performance for one technique and display mode. */
+/** Persistent drill-level performance for one technique. */
 public final class TrainingStats {
     private int attempts;
     private int correct;

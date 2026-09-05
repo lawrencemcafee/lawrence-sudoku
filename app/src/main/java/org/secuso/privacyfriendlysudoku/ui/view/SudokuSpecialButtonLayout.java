@@ -42,11 +42,18 @@ import static org.secuso.privacyfriendlysudoku.ui.view.SudokuButtonType.getSpeci
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.List;
 
 /**
  * Created by TMZ_LToP on 17.11.2015.
  */
 public class SudokuSpecialButtonLayout extends LinearLayout implements IHighlightChangedListener {
+
+    public interface OnButtonClickListener {
+        boolean onButtonClick(SudokuButtonType type);
+    }
+
+    private OnButtonClickListener buttonClickListener;
 
 
     SudokuSpecialButton[] fixedButtons;
@@ -66,6 +73,10 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
         public void onClick(View v) {
             if(v instanceof SudokuSpecialButton) {
                 SudokuSpecialButton btn = (SudokuSpecialButton)v;
+
+                if(buttonClickListener != null && buttonClickListener.onButtonClick(btn.getType())) {
+                    return;
+                }
 
                 //int row = gameController.getSelectedRow();
                 //int col = gameController.getSelectedCol();
@@ -185,12 +196,20 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
     }
 
     public void setButtonsEnabled(boolean enabled) {
+        if(fixedButtons == null) return;
         for(SudokuSpecialButton b : fixedButtons) {
-            b.setEnabled(enabled);
+            b.setEnabled(enabled && b.getVisibility() == View.VISIBLE);
         }
     }
 
     public void setButtons(int width, GameController gc, SudokuKeyboardLayout key, int orientation, Context cxt) {
+        setButtons(width, gc, key, orientation, cxt, getSpecialButtons());
+    }
+
+    /** Keep the standard control positions while exposing only the supplied actions. */
+    public void setButtons(int width, GameController gc, SudokuKeyboardLayout key,
+                           int orientation, Context cxt, List<SudokuButtonType> visibleButtons) {
+        removeAllViews();
         keyboard=key;
         gameController = gc;
         context = cxt;
@@ -213,8 +232,9 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
 
             //int width2 =width/(fixedButtonsCount);
             //p.width= width2-15;
-            if(t == Spacer) {
+            if(t == Spacer || !visibleButtons.contains(t)) {
                 fixedButtons[i].setVisibility(View.INVISIBLE);
+                fixedButtons[i].setEnabled(false);
             }
 
             fixedButtons[i].setLayoutParams(p);
@@ -224,6 +244,8 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
                 fixedButtons[i].setContentDescription(context.getString(R.string.help_fill_candidates));
             } else if(t == SudokuButtonType.Hint) {
                 fixedButtons[i].setContentDescription(context.getString(R.string.help_hint));
+            } else if(t == SudokuButtonType.NoteToggle) {
+                fixedButtons[i].setContentDescription(context.getString(R.string.help_notes));
             }
             fixedButtons[i].setScaleType(ImageView.ScaleType.FIT_XY);
             fixedButtons[i].setAdjustViewBounds(true);
@@ -236,8 +258,22 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
 
     }
 
+    public void setOnButtonClickListener(OnButtonClickListener listener) {
+        buttonClickListener = listener;
+    }
+
+    public SudokuSpecialButton getButton(SudokuButtonType type) {
+        if(fixedButtons != null) {
+            for(SudokuSpecialButton button : fixedButtons) {
+                if(button.getType() == type) return button;
+            }
+        }
+        return null;
+    }
+
     @Override
     public void onHighlightChanged() {
+        if(fixedButtons == null) return;
         for(int i = 0; i < fixedButtons.length; i++) {
             switch(fixedButtons[i].getType()) {
                 case Undo:
@@ -259,6 +295,9 @@ public class SudokuSpecialButtonLayout extends LinearLayout implements IHighligh
 
                     fixedButtons[i].setImageBitmap(bitResult);
                     fixedButtons[i].setBackgroundResource(gameController.getNoteStatus() ? R.drawable.numpad_highlighted_three : R.drawable.numpad_highlighted_four);
+                    fixedButtons[i].setSelected(gameController.getNoteStatus());
+                    fixedButtons[i].setContentDescription(context.getString(gameController.getNoteStatus()
+                            ? R.string.note_mode_on : R.string.note_mode_off));
 
                     keyboard.updateNotesEnabled();
 

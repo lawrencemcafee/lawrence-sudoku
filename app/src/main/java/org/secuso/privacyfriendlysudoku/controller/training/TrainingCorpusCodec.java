@@ -59,9 +59,10 @@ public final class TrainingCorpusCodec {
                         targets.add(new TrainingTarget(input.readUnsignedByte(),
                                 input.readUnsignedByte(), input.readUnsignedByte()));
                     }
-                    int focusedValueMask = input.readUnsignedShort();
+                    // Retired candidate filter in the bundled v1 format; never hide candidates.
+                    input.readUnsignedShort();
                     positions.add(new TrainingPosition(id, technique, values, masks, solution,
-                            action, targets, focusedValueMask));
+                            action, targets));
                 }
                 result.put(technique, positions);
             }
@@ -97,7 +98,7 @@ public final class TrainingCorpusCodec {
                         output.writeByte(target.getCol());
                         output.writeByte(target.getValue());
                     }
-                    output.writeShort(position.getFocusedValueMask());
+                    output.writeShort(0); // Reserved legacy candidate-filter field in v1.
                 }
             }
         }
