@@ -544,6 +544,8 @@ public class GymDrillActivity extends BaseActivity {
     }
 
     private void updateReviewDescription() {
+        reviewSwitch.setText(reviewSwitch.isChecked()
+                ? R.string.gym_advance_review : R.string.gym_advance_auto);
         reviewSwitch.setContentDescription(getString(reviewSwitch.isChecked()
                 ? R.string.gym_review_description : R.string.gym_auto_description));
     }
