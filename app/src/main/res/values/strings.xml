@@ -102,7 +102,8 @@
     <string name="gym">Gym</string>
     <string name="gym_level_format">Level %1$d</string>
     <string name="gym_stats_row_format">%1$d attempts · %2$d%% correct · %3$d reveals · streak %4$d · best %5$d</string>
-    <string name="gym_drill_stats_format">%1$d%% correct · streak %2$d · best %3$d</string>
+    <string name="gym_quiz_stats_format">This quiz: %1$d%% correct (%2$d/%3$d)</string>
+    <string name="gym_quiz_stats_empty">This quiz: no answers yet</string>
     <string name="gym_reset_stats">Reset Gym statistics</string>
     <string name="gym_reset_confirmation">Reset statistics for every skill?</string>
     <string name="gym_hint_description">Show technique hint</string>

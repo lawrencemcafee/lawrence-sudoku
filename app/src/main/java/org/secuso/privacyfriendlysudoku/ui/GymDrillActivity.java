@@ -35,7 +35,6 @@ import org.secuso.privacyfriendlysudoku.controller.training.TrainingCorpusProvid
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingPosition;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingQuiz;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingSession;
-import org.secuso.privacyfriendlysudoku.controller.training.TrainingStats;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStatsRepository;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingTarget;
 import org.secuso.privacyfriendlysudoku.game.DifficultyLevel;
@@ -184,7 +183,7 @@ public class GymDrillActivity extends BaseActivity {
         actionView = findViewById(R.id.gymDrillAction);
         statsView = findViewById(R.id.gymDrillStats);
         statsRepository = new TrainingStatsRepository(this);
-        updateStats();
+        updateQuizScore();
         if(resultsVisible) {
             showResults();
         } else {
@@ -405,7 +404,7 @@ public class GymDrillActivity extends BaseActivity {
                 sequence - quiz.getStartSequence() + 1, TrainingQuiz.LENGTH));
         actionView.setText(prepared.position.getAction() == GameHint.Action.PLACE_VALUE
                 ? R.string.gym_action_placement : R.string.gym_action_elimination);
-        updateStats();
+        updateQuizScore();
         if(completionPending) {
             TrainingQuiz.Result result = quiz.getResult(sequence);
             if(result.wasHintApplied()) {
@@ -484,14 +483,14 @@ public class GymDrillActivity extends BaseActivity {
         if(attemptStarted) return;
         attemptStarted = true;
         statsRepository.recordAttempt(technique);
-        updateStats();
+        updateQuizScore();
     }
 
     private void markFailure() {
         if(!eligible) return;
         eligible = false;
         statsRepository.recordFailure(technique);
-        updateStats();
+        updateQuizScore();
     }
 
     private void showHint() {
@@ -511,7 +510,7 @@ public class GymDrillActivity extends BaseActivity {
                     statsRepository.recordReveal(technique);
                 }
                 markFailure();
-                updateStats();
+                updateQuizScore();
             }
 
             @Override
@@ -538,7 +537,7 @@ public class GymDrillActivity extends BaseActivity {
                 : eligible ? TrainingQuiz.Outcome.FIRST_TRY : TrainingQuiz.Outcome.AFTER_ERRORS;
         quiz.record(sequence, new TrainingQuiz.Result(outcome, answer, hintApplied));
         if(eligible) statsRepository.recordCorrect(technique);
-        updateStats();
+        updateQuizScore();
         reviewRequested = reviewSwitch.isChecked();
         reviewPage = -1;
         updateCompletionBehavior();
@@ -598,6 +597,7 @@ public class GymDrillActivity extends BaseActivity {
     }
 
     private void showLoading() {
+        updateQuizScore();
         findViewById(R.id.gymQuizResults).setVisibility(View.GONE);
         findViewById(R.id.gymGameContent).setVisibility(View.VISIBLE);
         findViewById(R.id.gymDrillHeader).setVisibility(View.VISIBLE);
@@ -741,10 +741,17 @@ public class GymDrillActivity extends BaseActivity {
         finish();
     }
 
-    private void updateStats() {
-        TrainingStats stats = statsRepository.get(technique);
-        statsView.setText(getString(R.string.gym_drill_stats_format,
-                stats.getAccuracyPercent(), stats.getCurrentStreak(), stats.getBestStreak()));
+    private void updateQuizScore() {
+        int attempted = quiz.getCompletedCount();
+        // A wrong answer or hint scores the active question once, even before completion.
+        if(attemptStarted && !quiz.hasResult(sequence)) attempted++;
+        if(attempted == 0) {
+            statsView.setText(R.string.gym_quiz_stats_empty);
+            return;
+        }
+        int correct = quiz.count(TrainingQuiz.Outcome.FIRST_TRY);
+        statsView.setText(getString(R.string.gym_quiz_stats_format,
+                Math.round(correct * 100f / attempted), correct, attempted));
     }
 
     private Symbol selectedSymbols() {

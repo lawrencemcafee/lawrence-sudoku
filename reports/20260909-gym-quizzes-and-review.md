@@ -46,6 +46,10 @@ use. Mode-sensitive answer grading and lifetime statistics retain their existing
 semantics. Differentiating valid off-technique moves from generic incorrect
 answers remains a separate proposal.
 
+The later [current quiz score correction](20260909-gym-current-quiz-score.md)
+replaces the drill header's lifetime accuracy and streaks with the current quiz's
+running accuracy; it preserves the underlying skill history.
+
 Canonical implementation:
 
 - [TrainingQuiz](../app/src/main/java/org/secuso/privacyfriendlysudoku/controller/training/TrainingQuiz.java)

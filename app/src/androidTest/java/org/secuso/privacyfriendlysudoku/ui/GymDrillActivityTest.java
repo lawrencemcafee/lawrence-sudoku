@@ -389,6 +389,71 @@ public class GymDrillActivityTest {
     }
 
     @Test
+    public void quizHeaderIgnoresHistoryAndCountsEachAttemptedQuestionOnce() {
+        TrainingStatsRepository history = new TrainingStatsRepository(context);
+        for(int index = 0; index < 12; index++) {
+            history.recordAttempt(HumanTechnique.LAST_DIGIT);
+            if(index < 7) history.recordCorrect(HumanTechnique.LAST_DIGIT);
+            else history.recordFailure(HumanTechnique.LAST_DIGIT);
+        }
+        assertEquals(58, history.get(HumanTechnique.LAST_DIGIT).getAccuracyPercent());
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.LAST_DIGIT)) {
+            scenario.onActivity(activity -> {
+                assertEquals(context.getString(R.string.gym_quiz_stats_empty),
+                        ((TextView) activity.findViewById(R.id.gymDrillStats)).getText().toString());
+                reviewSwitch(activity).setChecked(true);
+                GameHint target = answer(activity);
+                tapCell(activity, target.getRow(), target.getCol());
+                pressNumber(activity, target.getValue());
+                assertQuizScore(activity, 100, 1, 1);
+            });
+            awaitReview(scenario);
+            scenario.recreate();
+            awaitReview(scenario);
+            scenario.onActivity(activity -> {
+                assertQuizScore(activity, 100, 1, 1);
+                hintWindow(activity).getButton(DialogInterface.BUTTON_NEUTRAL).performClick();
+            });
+            awaitReady(scenario);
+            scenario.onActivity(activity -> {
+                assertQuizScore(activity, 100, 1, 1);
+                GameHint target = answer(activity);
+                tapCell(activity, target.getRow(), target.getCol());
+                pressNumber(activity, target.getValue() % 9 + 1);
+                assertQuizScore(activity, 50, 1, 2);
+                pressNumber(activity, target.getValue() % 9 + 1);
+                assertQuizScore(activity, 50, 1, 2);
+            });
+            scenario.recreate();
+            awaitReady(scenario);
+            scenario.onActivity(activity -> {
+                assertQuizScore(activity, 50, 1, 2);
+                pressNumber(activity, answer(activity).getValue());
+                assertQuizScore(activity, 50, 1, 2);
+            });
+            awaitReview(scenario);
+            scenario.onActivity(activity -> hintWindow(activity)
+                    .getButton(DialogInterface.BUTTON_NEUTRAL).performClick());
+            awaitReady(scenario);
+            scenario.onActivity(activity -> hintButton(activity).performClick());
+            scenario.onActivity(activity -> {
+                assertQuizScore(activity, 33, 1, 3);
+                hintWindow(activity).cancel();
+            });
+            scenario.recreate();
+            awaitReady(scenario);
+            scenario.onActivity(activity -> {
+                assertQuizScore(activity, 33, 1, 3);
+                GameHint target = answer(activity);
+                tapCell(activity, target.getRow(), target.getCol());
+                pressNumber(activity, target.getValue());
+                assertQuizScore(activity, 33, 1, 3);
+            });
+        }
+        assertStats(HumanTechnique.LAST_DIGIT, 15, 8, 1, 0);
+    }
+
+    @Test
     public void tenQuestionRecapRestoresReviewsPastAnswersAndStartsAFreshQuiz() {
         Set<String> seen = new HashSet<>();
         try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.LAST_DIGIT)) {
@@ -422,6 +487,7 @@ public class GymDrillActivityTest {
             awaitReview(scenario);
             scenario.onActivity(activity -> {
                 assertEquals(9L, privateField(activity, "sequence"));
+                assertQuizScore(activity, 80, 8, 10);
                 assertEquals(context.getString(R.string.gym_show_results),
                         hintWindow(activity).getButton(DialogInterface.BUTTON_NEUTRAL).getText().toString());
                 hintWindow(activity).getButton(DialogInterface.BUTTON_NEUTRAL).performClick();
@@ -444,6 +510,7 @@ public class GymDrillActivityTest {
             awaitReview(scenario);
             scenario.onActivity(activity -> {
                 assertEquals(0L, privateField(activity, "sequence"));
+                assertQuizScore(activity, 80, 8, 10);
                 hintWindow(activity).getButton(DialogInterface.BUTTON_NEUTRAL).performClick();
             });
             awaitResults(scenario);
@@ -454,8 +521,16 @@ public class GymDrillActivityTest {
                 assertEquals(10L, privateField(activity, "sequence"));
                 assertEquals(0, quiz(activity).getCompletedCount());
                 assertTrue(seen.add(position(activity).getId()));
+                assertEquals(context.getString(R.string.gym_quiz_stats_empty),
+                        ((TextView) activity.findViewById(R.id.gymDrillStats)).getText().toString());
             });
             assertStats(HumanTechnique.LAST_DIGIT, 10, 8, 1, 8);
+            scenario.onActivity(activity -> {
+                GameHint target = answer(activity);
+                tapCell(activity, target.getRow(), target.getCol());
+                pressNumber(activity, target.getValue());
+                assertQuizScore(activity, 100, 1, 1);
+            });
         }
     }
 
@@ -506,6 +581,12 @@ public class GymDrillActivityTest {
             awaitReady(scenario);
             assertStats(HumanTechnique.NAKED_PAIR, 1, 0, 1, 0);
         }
+    }
+
+    private static void assertQuizScore(GymDrillActivity activity, int percent, int correct,
+                                        int attempted) {
+        assertEquals(activity.getString(R.string.gym_quiz_stats_format, percent, correct, attempted),
+                ((TextView) activity.findViewById(R.id.gymDrillStats)).getText().toString());
     }
 
     private static SwitchCompat reviewSwitch(GymDrillActivity activity) {
