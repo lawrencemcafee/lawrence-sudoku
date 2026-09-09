@@ -3,6 +3,18 @@
 [ludoku-icon.png](ludoku-icon.png) is the 1024 px preview.
 [ludoku-icon.svg](ludoku-icon.svg) is the generated, self-contained vector preview.
 
+## Official Android icon
+
+The approved L artwork is the application's launcher icon, selected by
+[`android:icon` in the manifest](../app/src/main/AndroidManifest.xml). The
+[adaptive icon definition](../app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml)
+combines the generated foreground with the existing blue background.
+
+Keep these layers square and let Android apply the device's icon mask; the
+Pixel 8 Pro displays this icon as a circle. Do not pre-crop the layers or use the
+rounded preview as the adaptive foreground. Android supports different launcher
+shapes using the same layers. See [Android's adaptive icon documentation](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive).
+
 ## Canonical inputs
 
 | Element | Tracked source |

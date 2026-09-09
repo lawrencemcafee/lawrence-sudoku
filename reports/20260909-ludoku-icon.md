@@ -46,8 +46,8 @@ bitmap is included in the application.
   Build log: `/tmp/ludoku-icon-build.log`.
 
 The rebuilt APK is available at
-`app/build/outputs/apk/debug/pfa-sudoku-debug-v3.2.6.apk`. This turn prepares the
-icon assets and preview; device installation remains at the preceding build.
+`app/build/outputs/apk/debug/pfa-sudoku-debug-v3.2.6.apk`. The initial icon edit
+prepared assets and a preview; the later Pixel installation is recorded below.
 
 ## Reproducibility follow-up
 
@@ -69,7 +69,27 @@ Neither outer instruction file existed. The canonical manual now lives in the
 tracked checkout's `CLAUDE.md`, with `AGENTS.md` and both outer workspace entry
 points linked to it. The manual documents how to recreate the outer links.
 
+## Official icon and Pixel installation
+
+The user approved the artwork as the official icon and requested installation
+on the USB-connected Pixel 8 Pro. The manifest already selected the generated
+launcher assets, so no resource changes were necessary. Shape handling is now
+documented in the [artwork recipe](../artwork/README.md#official-android-icon).
+
+- `:app:assembleDebug` passed; log: `/tmp/ludoku-pixel-icon-build.log`.
+- All 11 packaged legacy/foreground launcher PNGs matched the tracked assets
+  pixel for pixel.
+- `adb -s 39290DLJG000YU install -r` succeeded, updating the existing
+  `com.lawrence.ludoku` installation without clearing its data.
+- The installed APK's SHA-256 matched the build:
+  `5e4fd999d6470270a7cfd06c2a8f272f6ad6754f9ae59615f37826f9ebef1ab7`.
+- The device's `config_icon_mask` was circular. Its App info screen visibly
+  showed the L and matching shadow inside the circle; local screenshot:
+  `/tmp/ludoku-pixel-icon-installed.png`.
+- Launching the app's launcher activity successfully reached `MainActivity`.
+
 ## Sources
 
 - [User request and implementation tracking](https://github.com/lawrencemcafee/lawrence-sudoku/issues/9)
+- [Android adaptive icon shape handling](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive)
 - Internal source and generated-artwork pointers are linked above.
