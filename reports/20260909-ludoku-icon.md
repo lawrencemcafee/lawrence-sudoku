@@ -49,6 +49,21 @@ The rebuilt APK is available at
 `app/build/outputs/apk/debug/pfa-sudoku-debug-v3.2.6.apk`. This turn prepares the
 icon assets and preview; device installation remains at the preceding build.
 
+## Reproducibility follow-up
+
+After approving the icon, the user requested durable instructions in
+`AGENTS.md`. The renderer, all three input assets, and generated outputs were
+already tracked and pushed. Added [project instructions](../AGENTS.md), expanded
+the canonical [artwork recipe](../artwork/README.md), and pinned the renderer's
+transitive Python dependencies as well as CairoSVG. The recipe records the
+native Cairo prerequisite and the environment used for the approved exports.
+
+Verification used a fresh `git archive` of the committed source, the updated
+requirements file, and a new isolated Python environment. Invoking the renderer
+from outside that checkout reproduced all 25 generated files byte for byte;
+`pip check` also passed. No artwork changed. Local SHA-256 evidence:
+`/tmp/ludoku-icon-repro-4clk1hpe/verified-sha256.json`.
+
 ## Sources
 
 - [User request and implementation tracking](https://github.com/lawrencemcafee/lawrence-sudoku/issues/9)
