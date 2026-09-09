@@ -58,3 +58,9 @@ technique and an independent Sudoku search. Keep that check passing when editing
 examples. `GymActivityTest` exercises the help buttons, original quiz navigation,
 and dialog recreation in the isolated `.uitest` app; never clear normal app data
 to test catalog help.
+
+After manually running device tests and collecting evidence, uninstall only
+`com.lawrence.ludoku.uitest.test` and `com.lawrence.ludoku.uitest` from that device.
+Do this before the final normal-app installation so the phone can be unplugged
+as soon as its update is verified. Never uninstall `com.lawrence.ludoku` for
+test cleanup.

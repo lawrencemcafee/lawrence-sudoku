@@ -67,6 +67,12 @@ build's SHA-256:
 The normal app's Gym statistics file was byte-for-byte unchanged across the
 installation. All device tests used the separate `.uitest` application.
 
+The Pixel disconnected after the normal installation and hash checks, before
+temporary test-package cleanup. The feature is installed and verified. Remaining
+cleanup when serial `39290DLJG000YU` reconnects: uninstall only
+`com.lawrence.ludoku.uitest.test` and `com.lawrence.ludoku.uitest`; keep the normal
+`com.lawrence.ludoku` installation. The user was asked to reconnect briefly.
+
 ## Sources
 
 - Internal implementation and test pointers are linked above. The existing
