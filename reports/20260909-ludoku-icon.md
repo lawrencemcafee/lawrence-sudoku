@@ -53,7 +53,7 @@ icon assets and preview; device installation remains at the preceding build.
 
 After approving the icon, the user requested durable instructions in
 `AGENTS.md`. The renderer, all three input assets, and generated outputs were
-already tracked and pushed. Added [project instructions](../AGENTS.md), expanded
+already tracked and pushed. Added [project instructions](../CLAUDE.md), expanded
 the canonical [artwork recipe](../artwork/README.md), and pinned the renderer's
 transitive Python dependencies as well as CairoSVG. The recipe records the
 native Cairo prerequisite and the environment used for the approved exports.
@@ -63,6 +63,11 @@ requirements file, and a new isolated Python environment. Invoking the renderer
 from outside that checkout reproduced all 25 generated files byte for byte;
 `pip check` also passed. No artwork changed. Local SHA-256 evidence:
 `/tmp/ludoku-icon-repro-4clk1hpe/verified-sha256.json`.
+
+The user then clarified that the entry point should be directly under `sudoku/`.
+Neither outer instruction file existed. The canonical manual now lives in the
+tracked checkout's `CLAUDE.md`, with `AGENTS.md` and both outer workspace entry
+points linked to it. The manual documents how to recreate the outer links.
 
 ## Sources
 
