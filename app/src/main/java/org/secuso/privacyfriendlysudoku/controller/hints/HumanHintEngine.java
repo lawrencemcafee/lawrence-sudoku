@@ -73,9 +73,19 @@ public final class HumanHintEngine {
     /** Run one selected rule against a prevalidated candidate-state snapshot. */
     public static GameHint findTechnique(CandidateState state, int[] solution, Symbol symbols,
                                          HumanTechnique technique) {
+        return findTechnique(state, solution, symbols, technique, null);
+    }
+
+    /** Explain a particular consequence, including alternatives to the first matching move. */
+    public static GameHint findTechnique(CandidateState state, int[] solution, Symbol symbols,
+                                         HumanTechnique technique, GameHint.Candidate target) {
         if(state == null || technique == null || solution == null
                 || solution.length != state.getSize() * state.getSize()) return null;
+        if(target != null && (target.getRow() < 0 || target.getRow() >= state.getSize()
+                || target.getCol() < 0 || target.getCol() >= state.getSize()
+                || target.getValue() < 1 || target.getValue() > state.getSize())) return null;
         HumanHintEngine engine = new HumanHintEngine(null, state, solution, symbols);
+        engine.requiredTarget = target;
         Deduction deduction = engine.findDeduction(technique);
         return deduction == null ? null : engine.toHint(deduction);
     }
@@ -86,6 +96,13 @@ public final class HumanHintEngine {
                                          HumanTechnique technique) {
         return findTechnique(CandidateState.fromSnapshot(gameType, values, masks), solution,
                 symbols, technique);
+    }
+
+    public static GameHint findTechnique(GameType gameType, int[] values, int[] masks,
+                                         int[] solution, Symbol symbols,
+                                         HumanTechnique technique, GameHint.Candidate target) {
+        return findTechnique(CandidateState.fromSnapshot(gameType, values, masks), solution,
+                symbols, technique, target);
     }
 
     /** Return every cell/value consequence that can be justified by one selected rule. */
@@ -1222,7 +1239,9 @@ public final class HumanHintEngine {
                 && (deduction.action == GameHint.Action.REMOVE_CANDIDATES
                 || state.isCandidateModeActive() || state.getRepairedCandidateCount() > 0);
         return new GameHint(deduction.title, deduction.summary, frames,
-                deduction.row, deduction.col, deduction.value, deduction.action,
+                requiredTarget == null ? deduction.row : requiredTarget.getRow(),
+                requiredTarget == null ? deduction.col : requiredTarget.getCol(),
+                requiredTarget == null ? deduction.value : requiredTarget.getValue(), deduction.action,
                 deduction.eliminations, state.previewMasks(), applyPreview,
                 state.getRepairedCandidateCount());
     }

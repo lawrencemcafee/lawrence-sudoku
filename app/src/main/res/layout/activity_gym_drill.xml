@@ -13,31 +13,59 @@
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorPrimary"
         android:theme="@style/ToolbarStyle"
-        app:popupTheme="@style/AppTheme.PopupOverlay" />
+        app:popupTheme="@style/AppTheme.PopupOverlay">
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/gymReviewSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:textOff="@string/gym_advance_auto"
+            android:textOn="@string/gym_advance_review"
+            app:showText="true"
+            app:switchMinWidth="104dp" />
+    </androidx.appcompat.widget.Toolbar>
 
     <LinearLayout
         android:id="@+id/gymDrillHeader"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
         android:gravity="center_vertical"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:paddingStart="16dp"
         android:paddingEnd="16dp">
 
-        <TextView
-            android:id="@+id/gymDrillAction"
-            android:layout_width="match_parent"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:textColor="?android:attr/textColorPrimary"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/gymDrillStats"
-            android:layout_width="match_parent"
+            <TextView
+                android:id="@+id/gymDrillAction"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/gymDrillStats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/gymNextQuestion"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="?android:attr/textColorSecondary"
-            android:textSize="12sp" />
+            android:text="@string/gym_next_question"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- Use the full game's arrangement. The include ID replaces its root main_content ID. -->
@@ -49,4 +77,12 @@
         android:layout_marginTop="0dp"
         android:layout_weight="1"
         tools:ignore="DuplicateIncludedIds" />
+
+    <include
+        android:id="@+id/gymQuizResults"
+        layout="@layout/gym_quiz_results"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone" />
 </LinearLayout>

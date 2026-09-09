@@ -8,6 +8,9 @@ import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Point;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.preference.PreferenceManager;
 import android.view.MenuItem;
 import android.view.WindowManager;
@@ -18,6 +21,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.widget.Toolbar;
+import androidx.appcompat.widget.SwitchCompat;
 
 import org.secuso.privacyfriendlysudoku.R;
 import org.secuso.privacyfriendlysudoku.controller.GameController;
@@ -29,6 +33,7 @@ import org.secuso.privacyfriendlysudoku.controller.hints.HumanTechnique;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingCorpus;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingCorpusProvider;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingPosition;
+import org.secuso.privacyfriendlysudoku.controller.training.TrainingQuiz;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingSession;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStats;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStatsRepository;
@@ -49,10 +54,12 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Endless isolated practice for one human Sudoku technique. */
+/** Ten-question quizzes with optional review of each human-technique deduction. */
 public class GymDrillActivity extends BaseActivity {
     public static final String EXTRA_TECHNIQUE = "gymTechnique";
+    public static final String PREF_REVIEW = "reviewAnswers";
 
+    private static final String TAG = "GymQuiz";
     private static final String STATE_SEED = "gymSeed";
     private static final String STATE_SEQUENCE = "gymSequence";
     private static final String STATE_ATTEMPT = "gymAttempt";
@@ -65,6 +72,11 @@ public class GymDrillActivity extends BaseActivity {
     private static final String STATE_NOTES = "notes";
     private static final String STATE_HINT_OPEN = "hintOpen";
     private static final String STATE_HINT_PAGE = "hintPage";
+    private static final String STATE_QUIZ_START = "quizStart";
+    private static final String STATE_QUIZ_RESULTS = "quizResults";
+    private static final String STATE_RESULTS_VISIBLE = "resultsVisible";
+    private static final String STATE_RECAP_REVIEW = "recapReview";
+    private static final String STATE_REVIEW_REQUESTED = "reviewRequested";
     private static final long NEXT_DELAY_MS = 600L;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -74,6 +86,7 @@ public class GymDrillActivity extends BaseActivity {
     private TrainingStatsRepository statsRepository;
     private HumanTechnique technique;
     private TrainingSession session;
+    private TrainingQuiz quiz;
     private long sessionSeed;
     private long sequence;
     private PreparedDrill current;
@@ -88,7 +101,17 @@ public class GymDrillActivity extends BaseActivity {
     private boolean resumed;
     private Bundle pendingInteraction;
     private HumanHintDialog hintDialog;
+    private GameHint reviewHint;
+    private PreparedDrill reviewProofRequested;
+    private boolean resultsVisible;
+    private boolean recapReview;
+    private boolean reviewRequested;
+    private int reviewPage = -1;
+    private final Runnable advanceRunnable = this::advance;
 
+    private Toolbar toolbar;
+    private SwitchCompat reviewSwitch;
+    private Button nextQuestion;
     private GameController gameController;
     private SudokuFieldLayout field;
     private SudokuKeyboardLayout keyboard;
@@ -114,6 +137,7 @@ public class GymDrillActivity extends BaseActivity {
 
         if(savedInstanceState == null) {
             sessionSeed = new Random().nextLong();
+            quiz = new TrainingQuiz(0);
         } else {
             sessionSeed = savedInstanceState.getLong(STATE_SEED);
             sequence = savedInstanceState.getLong(STATE_SEQUENCE);
@@ -121,16 +145,38 @@ public class GymDrillActivity extends BaseActivity {
             eligible = savedInstanceState.getBoolean(STATE_ELIGIBLE, true);
             revealRecorded = savedInstanceState.getBoolean(STATE_REVEAL);
             pendingInteraction = savedInstanceState.getBundle(STATE_INTERACTION);
+            quiz = TrainingQuiz.restore(savedInstanceState.getLong(STATE_QUIZ_START, sequence),
+                    savedInstanceState.getIntArray(STATE_QUIZ_RESULTS));
+            resultsVisible = savedInstanceState.getBoolean(STATE_RESULTS_VISIBLE);
+            recapReview = savedInstanceState.getBoolean(STATE_RECAP_REVIEW);
+            reviewRequested = savedInstanceState.getBoolean(STATE_REVIEW_REQUESTED);
         }
 
         setContentView(R.layout.activity_gym_drill);
-        Toolbar toolbar = findViewById(R.id.toolbar);
+        toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         ActionBar actionBar = getSupportActionBar();
         if(actionBar != null) {
             actionBar.setTitle(technique.getTitle());
             actionBar.setDisplayHomeAsUpEnabled(true);
         }
+
+        SharedPreferences gymSettings = getSharedPreferences("gym", MODE_PRIVATE);
+        reviewSwitch = findViewById(R.id.gymReviewSwitch);
+        reviewSwitch.setChecked(gymSettings.getBoolean(PREF_REVIEW, false));
+        updateReviewDescription();
+        reviewSwitch.setOnCheckedChangeListener((button, review) -> {
+            gymSettings.edit().putBoolean(PREF_REVIEW, review).apply();
+            updateReviewDescription();
+            if(completionPending && !recapReview) {
+                reviewRequested = review;
+                updateCompletionBehavior();
+            }
+        });
+        nextQuestion = findViewById(R.id.gymNextQuestion);
+        nextQuestion.setOnClickListener(view -> advance());
+        findViewById(R.id.gymAnotherQuiz).setOnClickListener(view -> startAnotherQuiz());
+        findViewById(R.id.gymChooseSkill).setOnClickListener(view -> finish());
 
         field = findViewById(R.id.sudokuLayout);
         keyboard = findViewById(R.id.sudokuKeyboardLayout);
@@ -139,8 +185,12 @@ public class GymDrillActivity extends BaseActivity {
         statsView = findViewById(R.id.gymDrillStats);
         statsRepository = new TrainingStatsRepository(this);
         updateStats();
-        showLoading();
-        requestPosition(sequence);
+        if(resultsVisible) {
+            showResults();
+        } else {
+            showLoading();
+            requestPosition(sequence);
+        }
     }
 
     @Override
@@ -148,33 +198,43 @@ public class GymDrillActivity extends BaseActivity {
         super.onResume();
         resumed = true;
         restoreInteraction();
+        updateCompletionBehavior();
     }
 
     @Override
     protected void onPause() {
         resumed = false;
+        mHandler.removeCallbacks(advanceRunnable);
         super.onPause();
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if(item.getItemId() == android.R.id.home) {
-            finish();
+            if(recapReview) showResults();
+            else finish();
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
     @Override
+    public void onBackPressed() {
+        if(recapReview) showResults();
+        else super.onBackPressed();
+    }
+
+    @Override
     protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
+        if(quiz == null) return;
         state.putLong(STATE_SEED, sessionSeed);
-        if(completionPending) {
-            state.putLong(STATE_SEQUENCE, sequence + 1);
-            state.putBoolean(STATE_ELIGIBLE, true);
-            return;
-        }
         state.putLong(STATE_SEQUENCE, sequence);
+        state.putLong(STATE_QUIZ_START, quiz.getStartSequence());
+        state.putIntArray(STATE_QUIZ_RESULTS, quiz.saveResults());
+        state.putBoolean(STATE_RESULTS_VISIBLE, resultsVisible);
+        state.putBoolean(STATE_RECAP_REVIEW, recapReview);
+        state.putBoolean(STATE_REVIEW_REQUESTED, reviewRequested);
         state.putBoolean(STATE_ATTEMPT, attemptStarted);
         state.putBoolean(STATE_ELIGIBLE, eligible);
         state.putBoolean(STATE_REVEAL, revealRecorded);
@@ -194,12 +254,21 @@ public class GymDrillActivity extends BaseActivity {
         if(hintDialog != null && hintDialog.isShowing()) {
             state.putBoolean(STATE_HINT_OPEN, true);
             state.putInt(STATE_HINT_PAGE, hintDialog.getDetailIndex());
+        } else if(completionPending && reviewRequested) {
+            state.putBoolean(STATE_HINT_OPEN, true);
+            state.putInt(STATE_HINT_PAGE, reviewPage);
         }
         return state;
     }
 
     private void restoreInteraction() {
         if(current == null || pendingInteraction == null) return;
+        if(completionPending) {
+            reviewRequested = pendingInteraction.getBoolean(STATE_HINT_OPEN, reviewRequested);
+            reviewPage = pendingInteraction.getInt(STATE_HINT_PAGE, -1);
+            pendingInteraction = null;
+            return;
+        }
         gameController.setNoteStatus(pendingInteraction.getBoolean(STATE_NOTES,
                 gameController.getNoteStatus()));
         gameController.resetSelects();
@@ -244,6 +313,7 @@ public class GymDrillActivity extends BaseActivity {
                 PreparedDrill prepared = prepare(requestedSequence);
                 runOnUiThread(() -> acceptPrepared(prepared));
             } catch(IOException | RuntimeException failure) {
+                Log.e(TAG, "Could not prepare Gym position " + requestedSequence, failure);
                 runOnUiThread(this::showCorpusError);
             }
         });
@@ -262,7 +332,7 @@ public class GymDrillActivity extends BaseActivity {
     }
 
     private void acceptPrepared(PreparedDrill prepared) {
-        if(destroyed) return;
+        if(destroyed || resultsVisible) return;
         if(prepared.sequence == sequence && current == null) {
             bind(prepared);
         } else if(prepared.sequence == sequence + 1 && current != null) {
@@ -273,7 +343,9 @@ public class GymDrillActivity extends BaseActivity {
     private void bind(PreparedDrill prepared) {
         current = prepared;
         prefetched = null;
-        completionPending = false;
+        completionPending = quiz.hasResult(sequence);
+        reviewHint = null;
+        reviewProofRequested = null;
         validTargets.clear();
         validTargets.addAll(prepared.position.getTargets());
 
@@ -299,10 +371,14 @@ public class GymDrillActivity extends BaseActivity {
             specialButtons.setButtons(display.x, gameController, keyboard, orientation, this,
                     Arrays.asList(SudokuButtonType.Hint, SudokuButtonType.NoteToggle));
             specialButtons.setOnButtonClickListener(type -> {
-                if(current == null || completionPending) return true;
+                if(current == null) return true;
                 if(type == SudokuButtonType.Hint) {
-                    showHint();
-                } else if(type == SudokuButtonType.NoteToggle) {
+                    if(completionPending) {
+                        reviewRequested = true;
+                        reviewPage = -1;
+                        showReview();
+                    } else showHint();
+                } else if(!completionPending && type == SudokuButtonType.NoteToggle) {
                     gameController.setNoteStatus(!gameController.getNoteStatus());
                     gameController.notifyHighlightChangedListeners();
                 }
@@ -323,11 +399,25 @@ public class GymDrillActivity extends BaseActivity {
         gameController.notifyHighlightChangedListeners();
         keyboard.setButtonsEnabled(true);
         specialButtons.setButtonsEnabled(true);
+        hintButton.setContentDescription(getString(R.string.gym_hint_description));
+        nextQuestion.setVisibility(View.GONE);
+        toolbar.setSubtitle(getString(R.string.gym_question_progress,
+                sequence - quiz.getStartSequence() + 1, TrainingQuiz.LENGTH));
         actionView.setText(prepared.position.getAction() == GameHint.Action.PLACE_VALUE
                 ? R.string.gym_action_placement : R.string.gym_action_elimination);
         updateStats();
+        if(completionPending) {
+            TrainingQuiz.Result result = quiz.getResult(sequence);
+            if(result.wasHintApplied()) {
+                gameController.applyHint(prepared.hint);
+                reviewHint = prepared.hint;
+            } else applyAnswer(result.getAnswer());
+        }
         restoreInteraction();
-        requestPrefetch(sequence + 1);
+        if(completionPending) updateCompletionBehavior();
+        if(!recapReview && sequence + 1 < quiz.getStartSequence() + TrainingQuiz.LENGTH) {
+            requestPrefetch(sequence + 1);
+        }
     }
 
     private void requestPrefetch(long nextSequence) {
@@ -375,6 +465,12 @@ public class GymDrillActivity extends BaseActivity {
             return;
         }
 
+        applyAnswer(answer);
+        completeCurrent(answer, false);
+    }
+
+    private void applyAnswer(TrainingTarget answer) {
+        int row = answer.getRow(), col = answer.getCol(), value = answer.getValue();
         if(current.position.getAction() == GameHint.Action.PLACE_VALUE) {
             gameController.setValue(row, col, value);
         } else {
@@ -382,7 +478,6 @@ public class GymDrillActivity extends BaseActivity {
             field.showCandidateFeedback(row, col, value, true);
         }
         gameController.notifyHighlightChangedListeners();
-        completeCurrent();
     }
 
     private void beginAttempt() {
@@ -422,30 +517,75 @@ public class GymDrillActivity extends BaseActivity {
             @Override
             public void onHintApplied() {
                 gameController.notifyHighlightChangedListeners();
-                completeCurrent();
+                reviewHint = current.hint;
+                completeCurrent(new TrainingTarget(current.hint.getRow(),
+                        current.hint.getCol(), current.hint.getValue()), true);
+            }
+
+            @Override
+            public void onHintDismissed() {
+                // Start review after the old dialog has cleared its overlay.
+                if(completionPending) updateCompletionBehavior();
             }
         });
         hintDialog.show(initialPage);
     }
 
-    private void completeCurrent() {
+    private void completeCurrent(TrainingTarget answer, boolean hintApplied) {
         if(completionPending) return;
         completionPending = true;
+        TrainingQuiz.Outcome outcome = revealRecorded ? TrainingQuiz.Outcome.ASSISTED
+                : eligible ? TrainingQuiz.Outcome.FIRST_TRY : TrainingQuiz.Outcome.AFTER_ERRORS;
+        quiz.record(sequence, new TrainingQuiz.Result(outcome, answer, hintApplied));
         if(eligible) statsRepository.recordCorrect(technique);
         updateStats();
-        actionView.setText(R.string.gym_correct);
+        reviewRequested = reviewSwitch.isChecked();
+        reviewPage = -1;
+        updateCompletionBehavior();
+    }
+
+    private void updateReviewDescription() {
+        reviewSwitch.setContentDescription(getString(reviewSwitch.isChecked()
+                ? R.string.gym_review_description : R.string.gym_auto_description));
+    }
+
+    private void updateCompletionBehavior() {
+        mHandler.removeCallbacks(advanceRunnable);
+        if(current == null || !completionPending || destroyed || resultsVisible) return;
+        boolean review = recapReview || reviewSwitch.isChecked();
+        actionView.setText(outcomeLabel(quiz.getResult(sequence).getOutcome()));
         keyboard.setButtonsEnabled(false);
         specialButtons.setButtonsEnabled(false);
-        mHandler.postDelayed(this::advance, NEXT_DELAY_MS);
+        hintButton.setEnabled(review);
+        hintButton.setContentDescription(getString(R.string.gym_review_answer));
+        nextQuestion.setText(continueLabel());
+        nextQuestion.setVisibility(review ? View.VISIBLE : View.GONE);
+        if(review) {
+            if(reviewRequested && resumed) showReview();
+        } else {
+            dismissHint();
+            if(resumed) mHandler.postDelayed(advanceRunnable, NEXT_DELAY_MS);
+        }
     }
 
     private void advance() {
-        sequence++;
+        if(!completionPending || destroyed || resultsVisible) return;
+        mHandler.removeCallbacks(advanceRunnable);
+        dismissHint();
+        if(recapReview || quiz.isComplete()) {
+            showResults();
+            return;
+        }
+        sequence = quiz.getNextSequence();
         current = null;
         attemptStarted = false;
         eligible = true;
         revealRecorded = false;
         completionPending = false;
+        reviewRequested = false;
+        reviewPage = -1;
+        reviewHint = null;
+        pendingInteraction = null;
         validTargets.clear();
         if(prefetched != null && prefetched.sequence == sequence) {
             PreparedDrill ready = prefetched;
@@ -458,9 +598,141 @@ public class GymDrillActivity extends BaseActivity {
     }
 
     private void showLoading() {
+        findViewById(R.id.gymQuizResults).setVisibility(View.GONE);
+        findViewById(R.id.gymGameContent).setVisibility(View.VISIBLE);
+        findViewById(R.id.gymDrillHeader).setVisibility(View.VISIBLE);
+        nextQuestion.setVisibility(View.GONE);
         actionView.setText(R.string.gym_loading);
         specialButtons.setButtonsEnabled(false);
         if(keyboardReady) keyboard.setButtonsEnabled(false);
+    }
+
+    private int continueLabel() {
+        if(recapReview) return R.string.gym_back_to_results;
+        return quiz.isComplete() ? R.string.gym_show_results : R.string.gym_next_question;
+    }
+
+    private void showReview() {
+        if(!resumed || destroyed || current == null || !completionPending || resultsVisible
+                || !reviewRequested || (hintDialog != null && hintDialog.isShowing())) return;
+        if(reviewHint == null) {
+            if(reviewProofRequested == current) return;
+            PreparedDrill source = current;
+            reviewProofRequested = source;
+            TrainingTarget answer = quiz.getResult(sequence).getAnswer();
+            actionView.setText(R.string.gym_explanation_loading);
+            executor.execute(() -> {
+                try {
+                    TrainingPosition position = source.position;
+                    GameHint explanation = HumanHintEngine.findTechnique(GameType.Default_9x9,
+                            position.getValues(), position.getCandidateMasks(), position.getSolution(),
+                            source.symbols, technique,
+                            new GameHint.Candidate(answer.getRow(), answer.getCol(), answer.getValue()));
+                    if(explanation == null) {
+                        throw new IllegalStateException("Accepted Gym answer has no technique proof.");
+                    }
+                    runOnUiThread(() -> {
+                        if(destroyed || current != source || !completionPending) return;
+                        reviewProofRequested = null;
+                        reviewHint = explanation;
+                        if(recapReview || reviewSwitch.isChecked()) updateCompletionBehavior();
+                    });
+                } catch(RuntimeException failure) {
+                    Log.e(TAG, "Could not explain Gym answer", failure);
+                    runOnUiThread(() -> {
+                        if(destroyed || current != source) return;
+                        reviewProofRequested = null;
+                        reviewRequested = false;
+                        actionView.setText(R.string.gym_explanation_error);
+                    });
+                }
+            });
+            return;
+        }
+        hintDialog = HumanHintDialog.forReview(this, gameController, reviewHint, continueLabel(),
+                this::advance, () -> {
+                    reviewRequested = false;
+                    reviewPage = -1;
+                });
+        hintDialog.show(reviewPage);
+    }
+
+    private void dismissHint() {
+        if(hintDialog != null) {
+            hintDialog.dismiss();
+            hintDialog = null;
+        }
+    }
+
+    private void showResults() {
+        mHandler.removeCallbacks(advanceRunnable);
+        dismissHint();
+        resultsVisible = true;
+        recapReview = false;
+        completionPending = false;
+        reviewRequested = false;
+        pendingInteraction = null;
+        current = null;
+        prefetched = null;
+        reviewHint = null;
+        validTargets.clear();
+        findViewById(R.id.gymGameContent).setVisibility(View.GONE);
+        findViewById(R.id.gymDrillHeader).setVisibility(View.GONE);
+        findViewById(R.id.gymQuizResults).setVisibility(View.VISIBLE);
+        toolbar.setSubtitle(R.string.gym_quiz_complete);
+        ((TextView) findViewById(R.id.gymQuizScore)).setText(getString(R.string.gym_quiz_score,
+                quiz.count(TrainingQuiz.Outcome.FIRST_TRY), TrainingQuiz.LENGTH));
+        ((TextView) findViewById(R.id.gymQuizBreakdown)).setText(getString(R.string.gym_quiz_breakdown,
+                quiz.count(TrainingQuiz.Outcome.FIRST_TRY), quiz.count(TrainingQuiz.Outcome.AFTER_ERRORS),
+                quiz.count(TrainingQuiz.Outcome.ASSISTED)));
+        LinearLayout questions = findViewById(R.id.gymQuizQuestions);
+        questions.removeAllViews();
+        for(int index = 0; index < quiz.getCompletedCount(); index++) {
+            long questionSequence = quiz.getStartSequence() + index;
+            Button question = new Button(this);
+            question.setText(getString(R.string.gym_question_result, index + 1,
+                    getString(outcomeLabel(quiz.getResult(questionSequence).getOutcome()))));
+            question.setOnClickListener(view -> reviewQuestion(questionSequence));
+            questions.addView(question, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+    }
+
+    private void reviewQuestion(long questionSequence) {
+        resultsVisible = false;
+        recapReview = true;
+        sequence = questionSequence;
+        current = null;
+        prefetched = null;
+        pendingInteraction = null;
+        reviewRequested = true;
+        reviewPage = -1;
+        showLoading();
+        requestPosition(sequence);
+    }
+
+    private void startAnotherQuiz() {
+        quiz = new TrainingQuiz(quiz.getStartSequence() + TrainingQuiz.LENGTH);
+        sequence = quiz.getStartSequence();
+        resultsVisible = false;
+        recapReview = false;
+        completionPending = false;
+        attemptStarted = false;
+        eligible = true;
+        revealRecorded = false;
+        reviewRequested = false;
+        pendingInteraction = null;
+        showLoading();
+        requestPosition(sequence);
+    }
+
+    private static int outcomeLabel(TrainingQuiz.Outcome outcome) {
+        switch(outcome) {
+            case FIRST_TRY: return R.string.gym_result_first_try;
+            case AFTER_ERRORS: return R.string.gym_result_after_errors;
+            case ASSISTED: return R.string.gym_result_assisted;
+            default: throw new IllegalArgumentException("Unknown quiz outcome.");
+        }
     }
 
     private void showCorpusError() {

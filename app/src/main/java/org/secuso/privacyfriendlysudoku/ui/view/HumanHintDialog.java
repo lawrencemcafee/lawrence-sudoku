@@ -32,12 +32,16 @@ public final class HumanHintDialog {
     public interface Listener {
         void onHintOpened();
         void onHintApplied();
+        default void onHintDismissed() {}
     }
 
     private final Context context;
     private final GameController gameController;
     private final GameHint hint;
     private final Listener listener;
+    private final Runnable reviewContinue;
+    private final Runnable reviewDismiss;
+    private final int reviewContinueLabel;
     private AlertDialog dialog;
     private int detailIndex = -1;
 
@@ -47,10 +51,26 @@ public final class HumanHintDialog {
 
     public HumanHintDialog(Context context, GameController gameController, GameHint hint,
                            Listener listener) {
+        this(context, gameController, hint, listener, 0, null, null);
+    }
+
+    private HumanHintDialog(Context context, GameController gameController, GameHint hint,
+                            Listener listener, int reviewContinueLabel,
+                            Runnable reviewContinue, Runnable reviewDismiss) {
         this.context = context;
         this.gameController = gameController;
         this.hint = hint;
         this.listener = listener;
+        this.reviewContinueLabel = reviewContinueLabel;
+        this.reviewContinue = reviewContinue;
+        this.reviewDismiss = reviewDismiss;
+    }
+
+    public static HumanHintDialog forReview(Context context, GameController controller,
+                                           GameHint hint, int continueLabel,
+                                           Runnable onContinue, Runnable onDismiss) {
+        return new HumanHintDialog(context, controller, hint, null, continueLabel,
+                onContinue, onDismiss);
     }
 
     public void show() {
@@ -69,9 +89,13 @@ public final class HumanHintDialog {
 
         dialog.setCanceledOnTouchOutside(true);
         configureWindow();
-        dialog.setOnDismissListener(ignored -> gameController.endHint());
+        dialog.setOnDismissListener(ignored -> {
+            gameController.endHint();
+            if(listener != null) listener.onHintDismissed();
+            if(reviewDismiss != null) reviewDismiss.run();
+        });
         dialog.setOnShowListener(ignored -> {
-            gameController.beginHint(hint);
+            gameController.beginHint(hint, reviewContinue == null);
             if(listener != null) listener.onHintOpened();
             configureWindow();
             if(initialDetailIndex >= 0 && initialDetailIndex < hint.getDetails().size()) {
@@ -113,10 +137,7 @@ public final class HumanHintDialog {
         dialog.setTitle(hint.getTitle());
         dialog.setMessage(hint.getSummary());
 
-        Button apply = dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
-        apply.setVisibility(View.VISIBLE);
-        apply.setText(R.string.hint_apply);
-        apply.setOnClickListener(view -> applyHint());
+        configurePrimaryAction();
 
         Button previous = dialog.getButton(DialogInterface.BUTTON_NEGATIVE);
         previous.setVisibility(View.GONE);
@@ -139,10 +160,7 @@ public final class HumanHintDialog {
                 hint.getTitle(), detailIndex + 1, details.size()));
         dialog.setMessage(details.get(detailIndex));
 
-        Button apply = dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
-        apply.setVisibility(View.VISIBLE);
-        apply.setText(R.string.hint_apply);
-        apply.setOnClickListener(view -> applyHint());
+        configurePrimaryAction();
 
         Button next = dialog.getButton(DialogInterface.BUTTON_POSITIVE);
         next.setText(R.string.hint_next);
@@ -161,6 +179,20 @@ public final class HumanHintDialog {
                 showSummary();
             } else {
                 showDetail(detailIndex - 1);
+            }
+        });
+    }
+
+    private void configurePrimaryAction() {
+        Button primary = dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
+        primary.setVisibility(View.VISIBLE);
+        primary.setText(reviewContinue == null ? R.string.hint_apply : reviewContinueLabel);
+        primary.setOnClickListener(view -> {
+            if(reviewContinue == null) {
+                applyHint();
+            } else {
+                dialog.dismiss();
+                reviewContinue.run();
             }
         });
     }

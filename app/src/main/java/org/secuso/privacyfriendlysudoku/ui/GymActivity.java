@@ -22,6 +22,7 @@ import androidx.appcompat.widget.Toolbar;
 import org.secuso.privacyfriendlysudoku.R;
 import org.secuso.privacyfriendlysudoku.controller.hints.HumanTechnique;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStats;
+import org.secuso.privacyfriendlysudoku.controller.training.TrainingQuiz;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStatsRepository;
 
 import java.util.ArrayList;
@@ -42,6 +43,7 @@ public class GymActivity extends BaseActivity {
         ActionBar actionBar = getSupportActionBar();
         if(actionBar != null) {
             actionBar.setTitle(R.string.gym);
+            actionBar.setSubtitle(getString(R.string.gym_quiz_length, TrainingQuiz.LENGTH));
             actionBar.setDisplayHomeAsUpEnabled(true);
         }
 

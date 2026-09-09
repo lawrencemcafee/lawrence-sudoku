@@ -89,6 +89,18 @@ public class TrainingCorpusTest {
                 validateSolution(transformed);
                 validateCandidates(transformed);
                 assertEquals(targets(transformed), detectedTargets(transformed));
+                TrainingTarget answer = transformed.getTargets().get(transformed.getTargets().size() - 1);
+                GameHint explanation = HumanHintEngine.findTechnique(GameType.Default_9x9,
+                        transformed.getValues(), transformed.getCandidateMasks(), transformed.getSolution(),
+                        Symbol.Default, technique,
+                        new GameHint.Candidate(answer.getRow(), answer.getCol(), answer.getValue()));
+                assertNotNull(transformed.getId(), explanation);
+                assertEquals(answer.getRow(), explanation.getRow());
+                assertEquals(answer.getCol(), explanation.getCol());
+                assertEquals(answer.getValue(), explanation.getValue());
+                if(transformed.getAction() == GameHint.Action.REMOVE_CANDIDATES) {
+                    assertTrue(explanation.eliminates(answer.getRow(), answer.getCol(), answer.getValue()));
+                }
             }
         }
     }

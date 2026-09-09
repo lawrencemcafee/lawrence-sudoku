@@ -116,6 +116,28 @@
     <string name="gym_correct">Correct</string>
     <string name="gym_loading">Loading next drill…</string>
     <string name="gym_corpus_error">The bundled Gym exercises could not be loaded.</string>
+    <string name="gym_advance_auto">Auto</string>
+    <string name="gym_advance_review">Review</string>
+    <string name="gym_auto_description">Auto advance after 600 milliseconds. Switch to review explanations.</string>
+    <string name="gym_review_description">Review explanations after each answer. Switch to auto advance.</string>
+    <string name="gym_question_progress">Question %1$d of %2$d</string>
+    <string name="gym_quiz_length">%1$d-question quizzes</string>
+    <string name="gym_next_question">Next question</string>
+    <string name="gym_show_results">Results</string>
+    <string name="gym_back_to_results">Back to results</string>
+    <string name="gym_quiz_complete">Quiz complete</string>
+    <string name="gym_quiz_score">%1$d / %2$d on the first try</string>
+    <string name="gym_quiz_breakdown">%1$d first try without help\n%2$d solved after errors without help\n%3$d solved with a hint</string>
+    <string name="gym_another_quiz">Start another quiz</string>
+    <string name="gym_choose_skill">Choose a skill</string>
+    <string name="gym_review_questions">Tap a question to review its explanation.</string>
+    <string name="gym_question_result">Question %1$d · %2$s</string>
+    <string name="gym_result_first_try">First try</string>
+    <string name="gym_result_after_errors">Solved after errors</string>
+    <string name="gym_result_assisted">Solved with a hint</string>
+    <string name="gym_review_answer">Review this answer</string>
+    <string name="gym_explanation_loading">Preparing explanation…</string>
+    <string name="gym_explanation_error">The explanation could not be prepared. Tap Hint to retry.</string>
 
     <!--###GameActivity -->
     <string name="Sudoku" translatable="false">Sudoku</string>

@@ -14,7 +14,10 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.RadioGroup;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -31,6 +34,8 @@ import org.secuso.privacyfriendlysudoku.controller.hints.HumanTechnique;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStats;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStatsRepository;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingPosition;
+import org.secuso.privacyfriendlysudoku.controller.training.TrainingQuiz;
+import org.secuso.privacyfriendlysudoku.controller.training.TrainingTarget;
 import org.secuso.privacyfriendlysudoku.game.GameType;
 import org.secuso.privacyfriendlysudoku.ui.view.SudokuButton;
 import org.secuso.privacyfriendlysudoku.ui.view.SudokuButtonType;
@@ -40,6 +45,8 @@ import org.secuso.privacyfriendlysudoku.ui.view.SudokuFieldLayout;
 import org.secuso.privacyfriendlysudoku.ui.view.HumanHintDialog;
 
 import java.lang.reflect.Field;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -56,6 +63,7 @@ public class GymDrillActivityTest {
         assertTrue("Device tests must not touch the installed app's data",
                 context.getPackageName().endsWith(".uitest"));
         new TrainingStatsRepository(context).reset();
+        context.getSharedPreferences("gym", Context.MODE_PRIVATE).edit().clear().commit();
     }
 
     @Test
@@ -305,6 +313,246 @@ public class GymDrillActivityTest {
         }
     }
 
+    @Test
+    public void reviewExplainsTheSubmittedAnswerAndSurvivesRecreationWithoutHintCredit() {
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.NAKED_SINGLE)) {
+            AtomicReference<TrainingTarget> submitted = new AtomicReference<>();
+            scenario.onActivity(activity -> {
+                reviewSwitch(activity).setChecked(true);
+                TrainingPosition position = position(activity);
+                TrainingTarget answer = position.getTargets().get(position.getTargets().size() - 1);
+                submitted.set(answer);
+                pressNumber(activity, answer.getValue());
+                tapCell(activity, answer.getRow(), answer.getCol());
+            });
+            awaitReview(scenario);
+            SystemClock.sleep(750);
+            scenario.onActivity(activity -> {
+                GameHint explanation = controller(activity).getActiveHint();
+                assertEquals(submitted.get().getRow(), explanation.getRow());
+                assertEquals(submitted.get().getCol(), explanation.getCol());
+                assertEquals(submitted.get().getValue(), explanation.getValue());
+                assertEquals(0, controller(activity).getUsedHints());
+                assertEquals(1, quiz(activity).getCompletedCount());
+                hintWindow(activity).getButton(DialogInterface.BUTTON_POSITIVE).performClick();
+            });
+            scenario.recreate();
+            awaitReview(scenario);
+            scenario.onActivity(activity -> {
+                assertTrue(reviewSwitch(activity).isChecked());
+                assertEquals(0, controller(activity).getActiveHintFrame());
+                assertEquals(0, controller(activity).getUsedHints());
+                assertEquals(submitted.get().getValue(), controller(activity)
+                        .getValue(submitted.get().getRow(), submitted.get().getCol()));
+                hintWindow(activity).cancel();
+            });
+            // Dismissing an explanation retains the completed question and the Next control.
+            scenario.recreate();
+            awaitCompleted(scenario);
+            scenario.onActivity(activity -> {
+                assertNull(controller(activity).getActiveHint());
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.gymNextQuestion).getVisibility());
+                activity.findViewById(R.id.gymNextQuestion).performClick();
+            });
+            awaitReady(scenario);
+            assertStats(HumanTechnique.NAKED_SINGLE, 1, 1, 0, 1);
+        }
+    }
+
+    @Test
+    public void switchChangesPendingAdvanceAndPersistsAcrossSkillLaunches() {
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.LAST_DIGIT)) {
+            scenario.onActivity(activity -> {
+                GameHint target = answer(activity);
+                pressNumber(activity, target.getValue());
+                tapCell(activity, target.getRow(), target.getCol());
+                // Switch during the 600 ms window, before the automatic transition.
+                reviewSwitch(activity).setChecked(true);
+            });
+            awaitReview(scenario);
+            SystemClock.sleep(750);
+            scenario.onActivity(activity -> {
+                assertEquals(0L, privateField(activity, "sequence"));
+                hintWindow(activity).cancel();
+                reviewSwitch(activity).setChecked(false);
+            });
+            awaitReady(scenario);
+            scenario.onActivity(activity -> {
+                assertEquals(1L, privateField(activity, "sequence"));
+                reviewSwitch(activity).setChecked(true);
+            });
+        }
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.NAKED_PAIR)) {
+            scenario.onActivity(activity -> assertTrue(reviewSwitch(activity).isChecked()));
+        }
+        assertStats(HumanTechnique.LAST_DIGIT, 1, 1, 0, 1);
+    }
+
+    @Test
+    public void tenQuestionRecapRestoresReviewsPastAnswersAndStartsAFreshQuiz() {
+        Set<String> seen = new HashSet<>();
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.LAST_DIGIT)) {
+            for(int index = 0; index < TrainingQuiz.LENGTH; index++) {
+                int question = index;
+                scenario.onActivity(activity -> {
+                    assertTrue("Repeated position at question " + question,
+                            seen.add(position(activity).getId()));
+                    assertEquals(question, quiz(activity).getCompletedCount());
+                    GameHint target = answer(activity);
+                    if(question == 0) {
+                        tapCell(activity, target.getRow(), target.getCol());
+                        pressNumber(activity, target.getValue() % 9 + 1);
+                        pressNumber(activity, target.getValue());
+                    } else if(question == 1) {
+                        hintButton(activity).performClick();
+                    } else {
+                        if(question == TrainingQuiz.LENGTH - 1) reviewSwitch(activity).setChecked(true);
+                        pressNumber(activity, target.getValue());
+                        tapCell(activity, target.getRow(), target.getCol());
+                    }
+                });
+                if(index == 1) {
+                    scenario.onActivity(activity -> hintWindow(activity)
+                            .getButton(DialogInterface.BUTTON_NEUTRAL).performClick());
+                }
+                if(index < TrainingQuiz.LENGTH - 1) awaitReady(scenario);
+            }
+            awaitReview(scenario);
+            scenario.recreate();
+            awaitReview(scenario);
+            scenario.onActivity(activity -> {
+                assertEquals(9L, privateField(activity, "sequence"));
+                assertEquals(context.getString(R.string.gym_show_results),
+                        hintWindow(activity).getButton(DialogInterface.BUTTON_NEUTRAL).getText().toString());
+                hintWindow(activity).getButton(DialogInterface.BUTTON_NEUTRAL).performClick();
+            });
+            awaitResults(scenario);
+            scenario.recreate();
+            awaitResults(scenario);
+            scenario.onActivity(activity -> {
+                assertEquals(8, quiz(activity).count(TrainingQuiz.Outcome.FIRST_TRY));
+                assertEquals(1, quiz(activity).count(TrainingQuiz.Outcome.AFTER_ERRORS));
+                assertEquals(1, quiz(activity).count(TrainingQuiz.Outcome.ASSISTED));
+                assertEquals(context.getString(R.string.gym_quiz_score, 8, 10),
+                        ((TextView) activity.findViewById(R.id.gymQuizScore)).getText().toString());
+                LinearLayout questions = activity.findViewById(R.id.gymQuizQuestions);
+                assertEquals(10, questions.getChildCount());
+                questions.getChildAt(0).performClick();
+            });
+            awaitReview(scenario);
+            scenario.recreate();
+            awaitReview(scenario);
+            scenario.onActivity(activity -> {
+                assertEquals(0L, privateField(activity, "sequence"));
+                hintWindow(activity).getButton(DialogInterface.BUTTON_NEUTRAL).performClick();
+            });
+            awaitResults(scenario);
+            assertStats(HumanTechnique.LAST_DIGIT, 10, 8, 1, 8);
+            scenario.onActivity(activity -> activity.findViewById(R.id.gymAnotherQuiz).performClick());
+            awaitReady(scenario);
+            scenario.onActivity(activity -> {
+                assertEquals(10L, privateField(activity, "sequence"));
+                assertEquals(0, quiz(activity).getCompletedCount());
+                assertTrue(seen.add(position(activity).getId()));
+            });
+            assertStats(HumanTechnique.LAST_DIGIT, 10, 8, 1, 8);
+        }
+    }
+
+    @Test
+    public void automaticQuizStopsAtTenWithoutStartingAnEleventhQuestion() {
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.LAST_DIGIT)) {
+            for(int index = 0; index < TrainingQuiz.LENGTH; index++) {
+                scenario.onActivity(activity -> {
+                    GameHint target = answer(activity);
+                    pressNumber(activity, target.getValue());
+                    tapCell(activity, target.getRow(), target.getCol());
+                });
+                if(index < TrainingQuiz.LENGTH - 1) awaitReady(scenario);
+            }
+            awaitResults(scenario);
+            scenario.recreate();
+            awaitResults(scenario);
+            assertStats(HumanTechnique.LAST_DIGIT, 10, 10, 0, 10);
+            scenario.onActivity(activity -> {
+                assertTrue(quiz(activity).isComplete());
+                assertNull(privateField(activity, "current"));
+                assertEquals(View.GONE, activity.findViewById(R.id.gymGameContent).getVisibility());
+            });
+        }
+    }
+
+    @Test
+    public void applyingAHintInReviewModeDoesNotRecordASecondReveal() {
+        try(ActivityScenario<GymDrillActivity> scenario = launch(HumanTechnique.NAKED_PAIR)) {
+            scenario.onActivity(activity -> {
+                reviewSwitch(activity).setChecked(true);
+                hintButton(activity).performClick();
+            });
+            scenario.onActivity(activity -> hintWindow(activity)
+                    .getButton(DialogInterface.BUTTON_NEUTRAL).performClick());
+            awaitReview(scenario);
+            scenario.onActivity(activity -> {
+                assertNotNull("Closing the hint must not erase the new review overlay",
+                        controller(activity).getActiveHint());
+                assertEquals(1, controller(activity).getUsedHints());
+            });
+            scenario.recreate();
+            awaitReview(scenario);
+            scenario.onActivity(activity -> {
+                assertEquals(TrainingQuiz.Outcome.ASSISTED, quiz(activity).getResult(0).getOutcome());
+                hintWindow(activity).getButton(DialogInterface.BUTTON_NEUTRAL).performClick();
+            });
+            awaitReady(scenario);
+            assertStats(HumanTechnique.NAKED_PAIR, 1, 0, 1, 0);
+        }
+    }
+
+    private static SwitchCompat reviewSwitch(GymDrillActivity activity) {
+        return activity.findViewById(R.id.gymReviewSwitch);
+    }
+
+    private static TrainingPosition position(GymDrillActivity activity) {
+        return (TrainingPosition) privateField(privateField(activity, "current"), "position");
+    }
+
+    private static TrainingQuiz quiz(GymDrillActivity activity) {
+        return (TrainingQuiz) privateField(activity, "quiz");
+    }
+
+    private static void awaitCompleted(ActivityScenario<GymDrillActivity> scenario) {
+        awaitPhase(scenario, false, false);
+    }
+
+    private static void awaitReview(ActivityScenario<GymDrillActivity> scenario) {
+        awaitPhase(scenario, true, false);
+    }
+
+    private static void awaitResults(ActivityScenario<GymDrillActivity> scenario) {
+        awaitPhase(scenario, false, true);
+    }
+
+    private static void awaitPhase(ActivityScenario<GymDrillActivity> scenario,
+                                   boolean requireDialog, boolean results) {
+        long deadline = SystemClock.uptimeMillis() + 10000;
+        AtomicBoolean ready = new AtomicBoolean();
+        do {
+            scenario.onActivity(activity -> {
+                if(results) {
+                    ready.set((Boolean) privateField(activity, "resultsVisible"));
+                } else {
+                    HumanHintDialog dialog = (HumanHintDialog) privateField(activity, "hintDialog");
+                    ready.set(privateField(activity, "current") != null
+                            && (Boolean) privateField(activity, "completionPending")
+                            && (!requireDialog || dialog != null && dialog.isShowing()));
+                }
+            });
+            if(ready.get()) return;
+            SystemClock.sleep(20);
+        } while(SystemClock.uptimeMillis() < deadline);
+        fail("Quiz did not reach its expected review/result state");
+    }
+
     private static boolean containsModeSelector(View view) {
         if(view instanceof RadioGroup) return true;
         if(view instanceof ViewGroup) {
@@ -337,6 +585,7 @@ public class GymDrillActivityTest {
             scenario.onActivity(activity -> {
                 SudokuFieldLayout board = activity.findViewById(R.id.sudokuLayout);
                 ready.set(hintButton(activity) != null && hintButton(activity).isEnabled()
+                        && !(Boolean) privateField(activity, "completionPending")
                         && board.gamecells != null && board.gamecells[0][0].getWidth() > 0);
             });
             if(ready.get()) return;

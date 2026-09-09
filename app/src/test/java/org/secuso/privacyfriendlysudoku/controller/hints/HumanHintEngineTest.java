@@ -19,6 +19,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class HumanHintEngineTest {
@@ -156,6 +157,27 @@ public class HumanHintEngineTest {
         assertEquals(2, eliminations.size());
         assertTrue(eliminations.contains(new GameHint.Candidate(0, 4, 1)));
         assertTrue(eliminations.contains(new GameHint.Candidate(0, 5, 1)));
+    }
+
+    @Test
+    public void explainsTheSubmittedAlternativeInsteadOfTheFirstMatchingMove() {
+        CandidateState singles = state6(c(0, 0, 1), c(0, 1, 2));
+        GameHint second = HumanHintEngine.findTechnique(singles, solution(6), Symbol.Default,
+                HumanTechnique.NAKED_SINGLE, new GameHint.Candidate(0, 1, 2));
+        assertNotNull(second);
+        assertEquals(1, second.getCol());
+        assertEquals(2, second.getValue());
+        assertNull(HumanHintEngine.findTechnique(singles, solution(6), Symbol.Default,
+                HumanTechnique.NAKED_SINGLE, new GameHint.Candidate(0, 1, 3)));
+
+        CandidateState pointing = state6(
+                c(0, 0, 1), c(0, 1, 1), c(0, 4, 1), c(0, 5, 1), c(1, 3, 1));
+        GameHint elimination = HumanHintEngine.findTechnique(pointing, solution(6), Symbol.Default,
+                HumanTechnique.POINTING_CANDIDATES, new GameHint.Candidate(0, 5, 1));
+        assertNotNull(elimination);
+        assertTrue(elimination.eliminates(0, 5, 1));
+        assertEquals(5, elimination.getCol());
+        assertFalse(elimination.getFrames().isEmpty());
     }
 
     private void assertTopology(int size, int blockHeight, int blockWidth) {

@@ -238,6 +238,11 @@ public class GameController implements IModelChangedListener, Parcelable {
      * Highlight the move described by a hint and record that the explanation has been shown.
      */
     public void beginHint(GameHint hint) {
+        beginHint(hint, true);
+    }
+
+    /** Completed-answer reviews show the same evidence without consuming a hint. */
+    public void beginHint(GameHint hint, boolean countUsage) {
         if(hint == null) {
             return;
         }
@@ -248,7 +253,7 @@ public class GameController implements IModelChangedListener, Parcelable {
         selectedValue = 0;
         highlightValue = hint.getValue();
 
-        usedHints++;
+        if(countUsage) usedHints++;
         notifyHintListener();
         notifyHighlightChangedListeners();
     }
