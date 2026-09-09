@@ -3,24 +3,45 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="64dp"
-    android:orientation="vertical"
+    android:focusable="true"
+    android:background="?attr/selectableItemBackground"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
     android:paddingStart="16dp"
     android:paddingTop="10dp"
     android:paddingEnd="16dp"
     android:paddingBottom="10dp">
 
-    <TextView
-        android:id="@+id/gymSkillTitle"
-        android:layout_width="match_parent"
+    <LinearLayout
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:textColor="?android:attr/textColorPrimary"
-        android:textSize="18sp" />
+        android:layout_weight="1"
+        android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/gymSkillStats"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="13sp" />
+        <TextView
+            android:id="@+id/gymSkillTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/gymSkillStats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/gymSkillHelp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="8dp"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackground"
+        android:focusable="true"
+        app:srcCompat="@drawable/ic_help_outline_black_24dp" />
 </LinearLayout>

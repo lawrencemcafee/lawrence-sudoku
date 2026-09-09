@@ -24,6 +24,7 @@ import org.secuso.privacyfriendlysudoku.controller.hints.HumanTechnique;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStats;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingQuiz;
 import org.secuso.privacyfriendlysudoku.controller.training.TrainingStatsRepository;
+import org.secuso.privacyfriendlysudoku.ui.view.TechniqueHelpDialog;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,13 +53,12 @@ public class GymActivity extends BaseActivity {
         adapter = new SkillAdapter();
         ListView list = findViewById(R.id.gymSkillList);
         list.setAdapter(adapter);
-        list.setOnItemClickListener((parent, view, position, id) -> {
-            HumanTechnique technique = adapter.techniqueAt(position);
-            if(technique == null) return;
-            Intent intent = new Intent(this, GymDrillActivity.class);
-            intent.putExtra(GymDrillActivity.EXTRA_TECHNIQUE, technique.name());
-            startActivity(intent);
-        });
+    }
+
+    private void startQuiz(HumanTechnique technique) {
+        Intent intent = new Intent(this, GymDrillActivity.class);
+        intent.putExtra(GymDrillActivity.EXTRA_TECHNIQUE, technique.name());
+        startActivity(intent);
     }
 
     @Override
@@ -113,10 +113,6 @@ public class GymActivity extends BaseActivity {
             }
         }
 
-        HumanTechnique techniqueAt(int position) {
-            return entries.get(position).technique;
-        }
-
         @Override public int getCount() { return entries.size(); }
         @Override public Object getItem(int position) { return entries.get(position); }
         @Override public long getItemId(int position) { return position; }
@@ -140,9 +136,15 @@ public class GymActivity extends BaseActivity {
 
             View row = convertView == null
                     ? inflater.inflate(R.layout.gym_skill_row, parent, false) : convertView;
+            row.setOnClickListener(view -> startQuiz(entry.technique));
             TextView title = row.findViewById(R.id.gymSkillTitle);
             TextView stats = row.findViewById(R.id.gymSkillStats);
             title.setText(entry.technique.getTitle());
+            View help = row.findViewById(R.id.gymSkillHelp);
+            help.setContentDescription(getString(R.string.gym_skill_help_description,
+                    entry.technique.getTitle()));
+            help.setOnClickListener(view -> TechniqueHelpDialog.show(
+                    getSupportFragmentManager(), entry.technique));
             TrainingStats record = statsRepository.get(entry.technique);
             stats.setText(getString(R.string.gym_stats_row_format, record.getAttempts(),
                     record.getAccuracyPercent(), record.getReveals(), record.getCurrentStreak(),

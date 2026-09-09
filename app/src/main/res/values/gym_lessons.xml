@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gym_skill_help_description">How to use %1$s</string>
+    <string name="gym_help_close">Close</string>
+    <string name="gym_help_legend">Candidate sketch • Unneeded notes are hidden.\nCircled = place; crossed out = remove.</string>
+    <string name="gym_help_link_legend">Candidate sketch • Unneeded notes are hidden.\nSolid link: exactly one is true. Dashed: at most one.\nCrossed out = remove.</string>
+    <string name="lesson_last_digit_example">Only 5 is missing from this row. Put 5 in the circled cell.</string>
+    <string-array name="lesson_last_digit_steps">
+        <item>Find a row, column, or box with one empty cell.</item>
+        <item>Identify the missing digit from 1–9.</item>
+        <item>Fill the empty cell with that digit.</item>
+    </string-array>
+    <string name="lesson_naked_single_example">In this cell, 1–4 and 6–9 have been ruled out. The only remaining candidate is 5.</string>
+    <string-array name="lesson_naked_single_steps">
+        <item>Check an empty cell’s possible digits.</item>
+        <item>Rule out digits already placed in its row, column, or box.</item>
+        <item>If one candidate remains, place it.</item>
+    </string-array>
+    <string name="lesson_hidden_single_example">5 appears only in the third cell of this row, even though that cell also has 2 and 9. The rest of the row has no candidate 5.</string>
+    <string-array name="lesson_hidden_single_steps">
+        <item>Choose one missing digit in a row, column, or box.</item>
+        <item>Check every empty cell in that unit for the digit.</item>
+        <item>If it fits in just one cell, place it there—even if that cell has other candidates.</item>
+    </string-array>
+    <string name="lesson_pointing_example">In the top-left box, all candidate 5s lie in row 1. Remove 5 from row 1 outside that box.</string>
+    <string-array name="lesson_pointing_steps">
+        <item>Choose a digit inside one box.</item>
+        <item>Check whether all its possible cells share one row or column.</item>
+        <item>Remove that digit from the rest of that line, outside the box.</item>
+    </string-array>
+    <string name="lesson_claiming_example">Row 1 has only two places for 5, both in the top-left box. Remove 5 from the other cells of that box.</string>
+    <string-array name="lesson_claiming_steps">
+        <item>Choose a digit in a row or column.</item>
+        <item>Check whether all its possible cells fall inside one box.</item>
+        <item>Remove that digit from the other cells of that box, outside the line.</item>
+    </string-array>
+    <string name="lesson_skyscraper_example">Rows 1 and 5 each have just two places for 5. The candidates in column 2 cannot both be true, so at least one outer end is 5. The crossed-out 5 sees both outer ends.</string>
+    <string-array name="lesson_skyscraper_steps">
+        <item>Find two rows with exactly two candidates each for the same digit; columns work too.</item>
+        <item>One pair of ends must align in a column. The other ends are the roofs.</item>
+        <item>At least one roof must contain the digit. Remove it from any other cell that sees both roofs.</item>
+    </string-array>
+    <string name="lesson_kite_example">Row 1 and column 2 each have just two places for 5. Their inner ends share a box. At least one outer end is 5, so remove 5 at row 7, column 7.</string>
+    <string-array name="lesson_kite_steps">
+        <item>Find one row and one column with exactly two candidates each for the same digit.</item>
+        <item>One end from each line must be in the same box, in different cells.</item>
+        <item>Remove the digit from any other cell that sees both outer ends.</item>
+    </string-array>
+    <string name="lesson_xy_wing_example">The green pivot has {1,2}; its wings have {1,3} and {2,3}. Either pivot choice forces a wing to be 3. Remove 3 where both wings can see it.</string>
+    <string-array name="lesson_xy_wing_steps">
+        <item>Find a cell with exactly two candidates, X and Y.</item>
+        <item>Find two cells that see it, with exactly {X,Z} and {Y,Z}.</item>
+        <item>Remove Z from any other cell that sees both wings. Cells see each other when they share a row, column, or box.</item>
+    </string-array>
+    <string name="lesson_xyz_wing_example">The pivot has {1,2,3}; its wings have {1,3} and {2,3}. One of these three cells must be 3. The crossed-out 3 sees the pivot and both wings.</string>
+    <string-array name="lesson_xyz_wing_steps">
+        <item>Find a pivot with exactly three candidates: X, Y, and Z.</item>
+        <item>Find two cells that see the pivot, with exactly {X,Z} and {Y,Z}.</item>
+        <item>Remove Z only from other cells that see all three cells, including the pivot.</item>
+    </string-array>
+    <string name="lesson_w_wing_example">Both wings have {1,2}. Column 5 has exactly two places for 1, each seeing a different wing. One wing must be 2, so remove 2 where both wings can see it.</string>
+    <string-array name="lesson_w_wing_steps">
+        <item>Find two cells with the same two candidates, X and Y.</item>
+        <item>Find a unit with exactly two places for X, each seeing a different wing.</item>
+        <item>One wing must be Y. Remove Y from any other cell that sees both wings.</item>
+    </string-array>
+    <string name="lesson_coloring_example">Follow the solid links on 5, alternating blue and orange. The crossed-out 5 sees blue in its box and orange in its column, so either color rules it out.</string>
+    <string-array name="lesson_coloring_steps">
+        <item>For one digit, link pairs that are its only two places in a row, column, or box.</item>
+        <item>Alternate two colors along connected links. One whole color must be true.</item>
+        <item>Remove an uncolored candidate if it sees both colors.</item>
+        <item>If two candidates of the same color see each other, that color is false; remove all candidates of that color.</item>
+    </string-array>
+    <string name="lesson_x_chain_example">Follow the linked 5s from row 1, column 1 to row 4, column 8. The links alternate solid/dashed and end solid. At least one end is 5; the crossed-out 5 sees both.</string>
+    <string-array name="lesson_x_chain_steps">
+        <item>Use candidates of one digit. A strong link means one must be true; a weak link means they cannot both be true.</item>
+        <item>Alternate strong and weak links, starting and ending with a strong link.</item>
+        <item>At least one endpoint is true. Remove the digit from any other cell that sees both endpoints.</item>
+    </string-array>
+    <string name="lesson_xy_chain_example">The chain runs {1,2} → {2,3} → {3,4} → {4,1}. If the first cell is not 1, the last must be 1. Remove 1 from the crossed-out cell, which sees both ends.</string>
+    <string-array name="lesson_xy_chain_steps">
+        <item>Build a chain of cells that each have exactly two candidates.</item>
+        <item>Between cells, link matching candidates that see each other; inside each cell, switch to its other candidate.</item>
+        <item>End on the same digit you started with. Remove it from any other cell that sees both ends.</item>
+    </string-array>
+    <string name="lesson_forcing_example">Assume the orange cell is 1. The next cells must be 3, then 4, then 1. That puts two 1s in column 1—a contradiction. Remove the original candidate 1.</string>
+    <string-array name="lesson_forcing_steps">
+        <item>Temporarily assume one candidate is true.</item>
+        <item>Follow only forced placements and eliminations. If you branch, check every possibility.</item>
+        <item>If the assumption inevitably breaks a Sudoku rule or leaves a cell or digit with no place, remove it.</item>
+        <item>Discard the temporary placements; keep only the proven removal.</item>
+    </string-array>
+    <string name="lesson_naked_pair_example">This row fragment has two highlighted cells containing only 1, 2. Those digits occupy these cells, so the crossed-out 1 is removed from another cell in the row.</string>
+    <string-array name="lesson_naked_pair_steps">
+        <item>Find two cells in one row, column, or box.</item>
+        <item>Both cells must have exactly the same two candidates, with no other candidates.</item>
+        <item>Remove these digits from every other cell in that unit.</item>
+    </string-array>
+    <string name="lesson_hidden_pair_example">In this row, 1, 2 occur only in the two highlighted cells. Remove the crossed-out extra notes from those cells; keep 1, 2.</string>
+    <string-array name="lesson_hidden_pair_steps">
+        <item>Choose two digits in one row, column, or box.</item>
+        <item>All their candidate positions must fit inside exactly two cells, with no occurrences elsewhere in that unit.</item>
+        <item>Remove every other candidate from those two cells.</item>
+    </string-array>
+    <string name="lesson_naked_triple_example">This row fragment has three highlighted cells containing only 1, 2, 3. Those digits occupy these cells, so the crossed-out 1 is removed from another cell in the row.</string>
+    <string-array name="lesson_naked_triple_steps">
+        <item>Find three cells in one row, column, or box.</item>
+        <item>Together, their candidates must contain exactly three different digits. Each cell can contain fewer than three.</item>
+        <item>Remove these digits from every other cell in that unit.</item>
+    </string-array>
+    <string name="lesson_hidden_triple_example">In this row, 1, 2, 3 occur only in the three highlighted cells. Remove the crossed-out extra notes from those cells; keep 1, 2, 3.</string>
+    <string-array name="lesson_hidden_triple_steps">
+        <item>Choose three digits in one row, column, or box.</item>
+        <item>All their candidate positions must fit inside exactly three cells, with no occurrences elsewhere in that unit.</item>
+        <item>Remove every other candidate from those cells. Each cell need not contain all three chosen digits.</item>
+    </string-array>
+    <string name="lesson_naked_quad_example">This row fragment has four highlighted cells containing only 1, 2, 3, 4. Those digits occupy these cells, so the crossed-out 1 is removed from another cell in the row.</string>
+    <string-array name="lesson_naked_quad_steps">
+        <item>Find four cells in one row, column, or box.</item>
+        <item>Together, their candidates must contain exactly four different digits. Each cell can contain fewer than four.</item>
+        <item>Remove these digits from every other cell in that unit.</item>
+    </string-array>
+    <string name="lesson_hidden_quad_example">In this row, 1, 2, 3, 4 occur only in the four highlighted cells. Remove the crossed-out extra notes from those cells; keep 1, 2, 3, 4.</string>
+    <string-array name="lesson_hidden_quad_steps">
+        <item>Choose four digits in one row, column, or box.</item>
+        <item>All their candidate positions must fit inside exactly four cells, with no occurrences elsewhere in that unit.</item>
+        <item>Remove every other candidate from those cells. Each cell need not contain all four chosen digits.</item>
+    </string-array>
+    <string name="lesson_x_wing_example">In highlighted rows 1 and 4, every candidate 5 is in columns 2 and 5. Those columns must use their 5s in these rows. Remove the crossed-out 5 outside them.</string>
+    <string-array name="lesson_x_wing_steps">
+        <item>Choose one digit and two rows where it is still missing.</item>
+        <item>All candidates in those rows must be confined to exactly two columns.</item>
+        <item>Remove the digit from those columns outside the chosen rows. The same pattern works with rows and columns swapped.</item>
+    </string-array>
+    <string name="lesson_swordfish_example">In highlighted rows 1, 4, and 7, every candidate 5 is in columns 2, 5, and 8. Those columns must use their 5s in these rows. Remove the crossed-out 5 outside them.</string>
+    <string-array name="lesson_swordfish_steps">
+        <item>Choose one digit and three rows where it is still missing.</item>
+        <item>All candidates in those rows must be confined to exactly three columns; each row can use fewer than three of them.</item>
+        <item>Remove the digit from those columns outside the chosen rows. The same pattern works with rows and columns swapped.</item>
+    </string-array>
+    <string name="lesson_jellyfish_example">In highlighted rows 1, 4, 7, and 9, every candidate 5 is in columns 2, 5, 8, and 9. Those columns must use their 5s in these rows. Remove the crossed-out 5 outside them.</string>
+    <string-array name="lesson_jellyfish_steps">
+        <item>Choose one digit and four rows where it is still missing.</item>
+        <item>All candidates in those rows must be confined to exactly four columns; each row can use fewer than four of them.</item>
+        <item>Remove the digit from those columns outside the chosen rows. The same pattern works with rows and columns swapped.</item>
+    </string-array>
+</resources>

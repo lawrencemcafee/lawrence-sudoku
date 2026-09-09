@@ -43,3 +43,18 @@ files. The renderer and every input required for it are tracked in this repo.
   The generated preview SVG is an output; edit the canonical source files.
 
 Keep the detailed recipe in the artwork README as the single source of truth.
+
+## Gym skill help
+
+Every `HumanTechnique` has a catalog lesson. Edit the example geometry and
+candidate constraints in
+`app/src/main/java/org/secuso/privacyfriendlysudoku/controller/training/TechniqueLesson.java`,
+and the captions and bullet steps in `app/src/main/res/values/gym_lessons.xml`.
+`TechniqueDiagramView` renders the sketches directly; keep
+them independent of active quizzes and statistics.
+
+`TechniqueLessonTest` checks every illustrated conclusion with the named hint
+technique and an independent Sudoku search. Keep that check passing when editing
+examples. `GymActivityTest` exercises the help buttons, original quiz navigation,
+and dialog recreation in the isolated `.uitest` app; never clear normal app data
+to test catalog help.
